@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Opsight - AI Insights</title>
+  <script src="https://cdn.tailwindcss.com"></script><script>tailwindcss.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['"Space Grotesk"','system-ui','sans-serif'],mono:['"JetBrains Mono"','"SF Mono"','monospace']},colors:{surface:{DEFAULT:'#09090b',50:'#111114',100:'#18181b',200:'#1f1f23',300:'#27272a'},accent:{DEFAULT:'#0ea5e9',dim:'#0369a1'},warn:'#f59e0b',danger:'#ef4444',success:'#10b981'}}}}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box}body{margin:0;background:#09090b;color:#e4e4e7;font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
+    .nav-active{background:rgba(14,165,233,0.1);color:#0ea5e9;border-left:2px solid #0ea5e9}.nav-item{border-left:2px solid transparent;transition:background .15s,color .15s}.nav-item:hover{background:rgba(255,255,255,0.03);color:#e4e4e7}
+    @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.4}}.pulse-live{width:6px;height:6px;border-radius:50%;background:#10b981;animation:pulse-live 2s ease-in-out infinite}
+    @media(max-width:1023px){.sidebar{transform:translateX(-100%);transition:transform .25s}.sidebar.open{transform:translateX(0)}}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;font-family:'JetBrains Mono',monospace}
+    .badge-critical{background:rgba(239,68,68,0.12);color:#f87171}.badge-warning{background:rgba(245,158,11,0.12);color:#fbbf24}.badge-resolved{background:rgba(16,185,129,0.12);color:#34d399}.badge-info{background:rgba(14,165,233,0.12);color:#38bdf8}
+    .tab-active{color:#0ea5e9;border-bottom:2px solid #0ea5e9}.tab{transition:color .15s,border-color .15s;border-bottom:2px solid transparent}
+  </style>
+</head>
+<body class="dark">
+  <aside id="sidebar" class="sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col">
+    <div class="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0"><svg width="24" height="24" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#0ea5e9" fill-opacity="0.15"/><path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg><span class="text-white font-semibold tracking-tight">Opsight</span></div>
+    <nav class="flex-1 py-3 overflow-y-auto">
+      <div class="px-4 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Overview</span></div>
+      <a href="dashboard.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Dashboard</a>
+      <a href="metrics.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg>Metrics</a>
+      <a href="incidents.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12l3-3h9V2z"/><path d="M6 6h4M6 9h2"/></svg>Incidents</a>
+      <a href="services.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Services</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Intelligence</span></div>
+      <a href="insights.html" class="nav-item nav-active flex items-center gap-3 px-5 py-2 text-sm"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>AI Insights</a>
+      <a href="topology.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12h12V2z"/><path d="M2 6h12"/></svg>Topology</a>
+      <a href="alerts.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Alert Rules</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Settings</span></div>
+      <a href="integrations.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>Integrations</a>
+      <a href="team.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Team</a>
+    </nav>
+    <div class="px-4 py-3 border-t border-white/5 flex-shrink-0"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold">LH</div><div class="flex-1 min-w-0"><p class="text-sm text-zinc-300 truncate">Leo Hang</p><p class="font-mono text-xs text-zinc-600 truncate">Admin</p></div></div></div>
+  </aside>
+  <div class="lg:ml-60 min-h-screen flex flex-col">
+    <header class="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
+      <button id="sidebar-toggle" class="lg:hidden text-zinc-400 hover:text-white"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg></button>
+      <div class="flex items-center gap-2 text-sm"><span class="text-zinc-500">Opsight</span><span class="text-zinc-700">/</span><span class="text-zinc-300">AI Insights</span></div>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-2"><div class="pulse-live"></div><span class="font-mono text-xs text-zinc-500">Live</span></div>
+    </header>
+    <main class="flex-1 p-4 sm:p-6 space-y-6">
+      <div><h1 class="text-xl font-semibold text-white">AI Insights</h1><p class="text-sm text-zinc-500 mt-0.5">AI-powered analysis, predictions, and automated remediation</p></div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Root Causes Found</span><p class="text-2xl font-bold text-accent mt-1">147</p><p class="font-mono text-[10px] text-zinc-600 mt-1">last 30d</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Auto-Remediated</span><p class="text-2xl font-bold text-success mt-1">89</p><p class="font-mono text-[10px] text-zinc-600 mt-1">61% of total</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Predictions Made</span><p class="text-2xl font-bold text-warn mt-1">34</p><p class="font-mono text-[10px] text-zinc-600 mt-1">28 confirmed</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">MTTR Reduction</span><p class="text-2xl font-bold text-success mt-1">-62%</p><p class="font-mono text-[10px] text-zinc-600 mt-1">vs pre-AI baseline</p></div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-6 border-b border-white/5 pb-0">
+        <button class="tab tab-active text-sm py-2 px-1 text-zinc-300" data-tab="root-cause">Root Causes</button>
+        <button class="tab text-sm py-2 px-1 text-zinc-500 hover:text-zinc-300" data-tab="predictions">Predictions</button>
+        <button class="tab text-sm py-2 px-1 text-zinc-500 hover:text-zinc-300" data-tab="remediation">Remediations</button>
+        <button class="tab text-sm py-2 px-1 text-zinc-500 hover:text-zinc-300" data-tab="patterns">Patterns</button>
+      </div>
+
+      <!-- Insight cards -->
+      <div class="space-y-3" id="insights-container"></div>
+    </main>
+  </div>
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
+  <script>
+    const sb=document.getElementById('sidebar'),tg=document.getElementById('sidebar-toggle'),ov=document.getElementById('sidebar-overlay');
+    tg.addEventListener('click',()=>{sb.classList.toggle('open');ov.classList.toggle('hidden')});ov.addEventListener('click',()=>{sb.classList.remove('open');ov.classList.add('hidden')});
+
+    const insights={
+      'root-cause':[
+        {type:'critical',title:'Memory leak caused by session-cache eviction disabled in auth-svc v2.4.1',service:'auth-service',confidence:'97%',time:'2 min ago',detail:'Deploy at 14:05 UTC changed `session.cache.eviction.enabled` from true to false. Memory grows at 12 MB/min. Affected 3 pods across us-east-1.',related:'INC-4221'},
+        {type:'critical',title:'Redis latency spike correlated with payment-gateway 5xx errors',service:'payment-gateway',confidence:'94%',time:'12 min ago',detail:'Both anomalies triggered simultaneously after deploy at 14:05 UTC. Redis primary node showing disk IO saturation on the shared cache-layer instance.',related:'INC-4220'},
+        {type:'warning',title:'Kafka consumer lag from scaled-down group not restored',service:'event-pipeline',confidence:'99%',time:'2 hr ago',detail:'Consumer group was manually scaled to 3 for maintenance window at 11:00 UTC. Auto-scaler was paused and not re-enabled. Lag grew from 0 to 12,000 over 90 minutes.',related:'INC-4217'},
+        {type:'info',title:'DNS resolution failure from CoreDNS OOM kill',service:'service-mesh',confidence:'91%',time:'3 hr ago',detail:'CoreDNS pod was killed by OOM after memory limit was reduced from 512Mi to 256Mi during cluster upgrade. Auto-restarted with original limit.',related:'INC-4216'},
+      ],
+      'predictions':[
+        {type:'warning',title:'us-east-1 node 7 disk will reach 95% in ~6 hours',service:'infra/storage',confidence:'88%',time:'1 hr ago',detail:'Current growth rate: 2.1 GB/hr. Log rotation was disabled after last infra update. Projection based on last 4 hours of steady growth.',related:'INC-4218'},
+        {type:'info',title:'auth-service failure may cascade to order-service within 30 min',service:'order-service',confidence:'76%',time:'5 min ago',detail:'order-service depends on auth-service for token validation. Current auth-svc error rate of 14.2% will likely exhaust order-service circuit breaker within 30 minutes if unchecked.',related:'INC-4221'},
+        {type:'info',title:'SSL certificate for payment-vendor API expires in 14 days',service:'payment-gateway',confidence:'100%',time:'6 hr ago',detail:'Certificate for payments-vendor.internal expires on 2026-06-10. Cert-manager has not initiated renewal. Manual renewal or DNS challenge fix recommended.',related:null},
+      ],
+      'remediation':[
+        {type:'resolved',title:'Auto-scaled Kafka consumer group from 3 to 6 instances',service:'event-pipeline',confidence:'99%',time:'2 hr ago',detail:'Consumer lag dropped from 12,000 to under 100 within 15 minutes of scaling action. No manual intervention needed.',related:'INC-4217'},
+        {type:'resolved',title:'Auto-restarted CoreDNS with restored memory limit',service:'service-mesh',confidence:'95%',time:'3 hr ago',detail:'Restored memory limit from 256Mi to 512Mi. DNS resolution returned to normal within 30 seconds.',related:'INC-4216'},
+        {type:'resolved',title:'Triggered log rotation and freed 12 GB on node 7',service:'infra/storage',confidence:'90%',time:'1 hr ago',detail:'Ran logrotate for /var/log/app/*.log. Freed 12.3 GB. Disk usage dropped from 91.2% to 78.9%.',related:'INC-4218'},
+        {type:'info',title:'Suggested rollback for auth-svc to v2.4.0',service:'auth-service',confidence:'97%',time:'2 min ago',detail:'Recommending rollback of auth-svc deployment from v2.4.1 to v2.4.0. This will re-enable session-cache eviction and resolve the memory leak. Alternative: patch cache config in-place.',related:'INC-4221'},
+      ],
+      'patterns':[
+        {type:'warning',title:'Shared Redis instance creates blast radius across services',service:'cache-layer',confidence:'85%',time:'30 min ago',detail:'auth-service, payment-gateway, and user-service all share the same Redis cluster. When one service degrades the cache, others are affected. Recommend isolating per-team cache namespaces.',related:null},
+        {type:'info',title:'Deploys between 14:00-15:00 UTC have 3x higher incident rate',service:'platform',confidence:'82%',time:'1 day ago',detail:'Analysis of last 90 days shows 67% of incidents coincide with deploys during this window. Coincides with EU/US overlap peak traffic. Recommend deploy freeze during 14:00-15:00 UTC.',related:null},
+        {type:'info',title:'notification-svc restarts correlate with config migrations',service:'notification-service',confidence:'78%',time:'5 hr ago',detail:'3 of the last 4 config migrations triggered restart loops in notification-svc due to missing env vars. Recommend pre-deploy config validation check.',related:'INC-4214'},
+      ],
+    };
+
+    const badgeMap={critical:'badge-critical',warning:'badge-warning',resolved:'badge-resolved',info:'badge-info'};
+    const typeLabel={critical:'Critical',warning:'Warning',resolved:'Resolved',info:'Info'};
+
+    function renderInsights(tab){
+      const items=insights[tab];
+      document.getElementById('insights-container').innerHTML=items.map(ins=>`
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-5">
+          <div class="flex flex-col sm:flex-row sm:items-start gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-2 flex-wrap">
+                <span class="badge ${badgeMap[ins.type]}">${typeLabel[ins.type]}</span>
+                <span class="font-mono text-[10px] text-zinc-600">${ins.service}</span>
+                <span class="font-mono text-[10px] text-zinc-600">Confidence: ${ins.confidence}</span>
+              </div>
+              <h3 class="text-sm text-zinc-200 mb-2">${ins.title}</h3>
+              <p class="text-xs text-zinc-400 leading-relaxed mb-3">${ins.detail}</p>
+              <div class="flex items-center gap-3">
+                <span class="font-mono text-[10px] text-zinc-600">${ins.time}</span>
+                ${ins.related?`<a href="incidents.html" class="font-mono text-[10px] text-accent hover:underline">${ins.related}</a>`:''}
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    renderInsights('root-cause');
+
+    document.querySelectorAll('.tab').forEach(t=>{
+      t.addEventListener('click',()=>{
+        document.querySelectorAll('.tab').forEach(b=>{b.classList.remove('tab-active','text-zinc-300');b.classList.add('text-zinc-500')});
+        t.classList.add('tab-active','text-zinc-300');t.classList.remove('text-zinc-500');
+        renderInsights(t.dataset.tab);
+      });
+    });
+  </script>
+</body>
+</html>

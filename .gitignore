@@ -1,0 +1,24 @@
+# Go
+opsight-backend/bin/
+opsight-backend/opsight-api
+*.exe
+
+# Node
+node_modules/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

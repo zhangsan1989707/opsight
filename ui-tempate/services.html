@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Opsight - Services</title>
+  <script src="https://cdn.tailwindcss.com"></script><script>tailwindcss.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['"Space Grotesk"','system-ui','sans-serif'],mono:['"JetBrains Mono"','"SF Mono"','monospace']},colors:{surface:{DEFAULT:'#09090b',50:'#111114',100:'#18181b',200:'#1f1f23',300:'#27272a'},accent:{DEFAULT:'#0ea5e9',dim:'#0369a1'},warn:'#f59e0b',danger:'#ef4444',success:'#10b981'}}}}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box}body{margin:0;background:#09090b;color:#e4e4e7;font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
+    .nav-active{background:rgba(14,165,233,0.1);color:#0ea5e9;border-left:2px solid #0ea5e9}.nav-item{border-left:2px solid transparent;transition:background .15s,color .15s}.nav-item:hover{background:rgba(255,255,255,0.03);color:#e4e4e7}
+    @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.4}}.pulse-live{width:6px;height:6px;border-radius:50%;background:#10b981;animation:pulse-live 2s ease-in-out infinite}
+    @media(max-width:1023px){.sidebar{transform:translateX(-100%);transition:transform .25s}.sidebar.open{transform:translateX(0)}}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;font-family:'JetBrains Mono',monospace}
+    .badge-healthy{background:rgba(16,185,129,0.12);color:#34d399}.badge-degraded{background:rgba(245,158,11,0.12);color:#fbbf24}.badge-down{background:rgba(239,68,68,0.12);color:#f87171}
+  </style>
+</head>
+<body class="dark">
+  <aside id="sidebar" class="sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col">
+    <div class="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0"><svg width="24" height="24" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#0ea5e9" fill-opacity="0.15"/><path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg><span class="text-white font-semibold tracking-tight">Opsight</span></div>
+    <nav class="flex-1 py-3 overflow-y-auto">
+      <div class="px-4 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Overview</span></div>
+      <a href="dashboard.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Dashboard</a>
+      <a href="metrics.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg>Metrics</a>
+      <a href="incidents.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12l3-3h9V2z"/><path d="M6 6h4M6 9h2"/></svg>Incidents</a>
+      <a href="services.html" class="nav-item nav-active flex items-center gap-3 px-5 py-2 text-sm"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Services</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Intelligence</span></div>
+      <a href="insights.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>AI Insights</a>
+      <a href="topology.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12h12V2z"/><path d="M2 6h12"/></svg>Topology</a>
+      <a href="alerts.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Alert Rules</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Settings</span></div>
+      <a href="integrations.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>Integrations</a>
+      <a href="team.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Team</a>
+    </nav>
+    <div class="px-4 py-3 border-t border-white/5 flex-shrink-0"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold">LH</div><div class="flex-1 min-w-0"><p class="text-sm text-zinc-300 truncate">Leo Hang</p><p class="font-mono text-xs text-zinc-600 truncate">Admin</p></div></div></div>
+  </aside>
+  <div class="lg:ml-60 min-h-screen flex flex-col">
+    <header class="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
+      <button id="sidebar-toggle" class="lg:hidden text-zinc-400 hover:text-white"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg></button>
+      <div class="flex items-center gap-2 text-sm"><span class="text-zinc-500">Opsight</span><span class="text-zinc-700">/</span><span class="text-zinc-300">Services</span></div>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-2"><div class="pulse-live"></div><span class="font-mono text-xs text-zinc-500">Live</span></div>
+      <button class="relative text-zinc-500 hover:text-white transition-colors"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg><span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-danger rounded-full"></span></button>
+    </header>
+    <main class="flex-1 p-4 sm:p-6 space-y-6">
+      <!-- Summary -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Total Services</span><p class="text-2xl font-bold text-white mt-1">12</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Healthy</span><p class="text-2xl font-bold text-success mt-1">9</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Degraded</span><p class="text-2xl font-bold text-warn mt-1">2</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Down</span><p class="text-2xl font-bold text-danger mt-1">1</p></div>
+      </div>
+
+      <!-- Service Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="service-cards"></div>
+
+      <!-- Dependencies Table -->
+      <div class="bg-surface-50 border border-white/5 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-white/5"><h3 class="text-sm font-medium text-zinc-200">Dependency Matrix</h3></div>
+        <div class="overflow-x-auto p-4">
+          <table class="w-full text-xs">
+            <thead><tr><th class="p-2 text-zinc-600 font-mono text-[10px]"></th><th class="p-2 text-zinc-600 font-mono text-[10px]">api-gw</th><th class="p-2 text-zinc-600 font-mono text-[10px]">auth</th><th class="p-2 text-zinc-600 font-mono text-[10px]">payment</th><th class="p-2 text-zinc-600 font-mono text-[10px]">user</th><th class="p-2 text-zinc-600 font-mono text-[10px]">order</th><th class="p-2 text-zinc-600 font-mono text-[10px]">cache</th><th class="p-2 text-zinc-600 font-mono text-[10px]">events</th></tr></thead>
+            <tbody>
+              <tr><td class="p-2 font-mono text-zinc-500">api-gw</td><td class="p-2 text-center text-zinc-700">-</td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td><td class="p-2 text-center text-zinc-700"></td></tr>
+              <tr><td class="p-2 font-mono text-zinc-500">auth</td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center text-zinc-700">-</td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-danger mx-auto"></div></td><td class="p-2 text-center text-zinc-700"></td></tr>
+              <tr><td class="p-2 font-mono text-zinc-500">payment</td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center text-zinc-700">-</td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-warn mx-auto"></div></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td></tr>
+              <tr><td class="p-2 font-mono text-zinc-500">user</td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center text-zinc-700">-</td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td><td class="p-2 text-center text-zinc-700"></td></tr>
+              <tr><td class="p-2 font-mono text-zinc-500">order</td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td><td class="p-2 text-center text-zinc-700">-</td><td class="p-2 text-center text-zinc-700"></td><td class="p-2 text-center"><div class="w-3 h-3 rounded-full bg-success mx-auto"></div></td></tr>
+            </tbody>
+          </table>
+          <div class="flex items-center gap-4 mt-4 pt-3 border-t border-white/5">
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-success"></div><span class="font-mono text-[10px] text-zinc-500">Healthy dep</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-warn"></div><span class="font-mono text-[10px] text-zinc-500">Degraded dep</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-danger"></div><span class="font-mono text-[10px] text-zinc-500">Down dep</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
+  <script>
+    const sb=document.getElementById('sidebar'),tg=document.getElementById('sidebar-toggle'),ov=document.getElementById('sidebar-overlay');
+    tg.addEventListener('click',()=>{sb.classList.toggle('open');ov.classList.toggle('hidden')});ov.addEventListener('click',()=>{sb.classList.remove('open');ov.classList.add('hidden')});
+    Chart.defaults.color='#52525b';Chart.defaults.borderColor='rgba(255,255,255,0.04)';Chart.defaults.font.family="'JetBrains Mono',monospace";Chart.defaults.font.size=10;
+    const hours=Array.from({length:24},(_,i)=>`${String(i).padStart(2,'0')}:00`);
+    const gen=()=>hours.map(()=>10+Math.random()*60);
+
+    const services=[
+      {name:'api-gateway',status:'healthy',uptime:'99.99%',rps:'4,200',p50:'12ms',p99:'45ms',errRate:'0.02%',deps:['user-service','auth-service','payment-gateway','order-service','cache-layer'],team:'Platform'},
+      {name:'auth-service',status:'down',uptime:'99.81%',rps:'1,100',p50:'8.5s',p99:'12s',errRate:'14.2%',deps:['cache-layer','user-service'],team:'Identity'},
+      {name:'payment-gateway',status:'degraded',uptime:'99.92%',rps:'890',p50:'1.2s',p99:'2.1s',errRate:'3.8%',deps:['cache-layer','event-pipeline'],team:'Payments'},
+      {name:'user-service',status:'healthy',uptime:'99.98%',rps:'3,400',p50:'8ms',p99:'32ms',errRate:'0.01%',deps:['cache-layer'],team:'Identity'},
+      {name:'order-service',status:'healthy',uptime:'99.97%',rps:'2,100',p50:'18ms',p99:'67ms',errRate:'0.05%',deps:['payment-gateway','event-pipeline','user-service'],team:'Commerce'},
+      {name:'notification-svc',status:'healthy',uptime:'99.95%',rps:'560',p50:'6ms',p99:'28ms',errRate:'0.03%',deps:['event-pipeline'],team:'Platform'},
+      {name:'cache-layer',status:'degraded',uptime:'99.88%',rps:'12,000',p50:'2ms',p99:'210ms',errRate:'0.8%',deps:[],team:'Infrastructure'},
+      {name:'event-pipeline',status:'healthy',uptime:'99.99%',rps:'8,700',p50:'4ms',p99:'15ms',errRate:'0.01%',deps:[],team:'Data'},
+      {name:'search-service',status:'healthy',uptime:'99.94%',rps:'1,800',p50:'22ms',p99:'89ms',errRate:'0.08%',deps:['cache-layer'],team:'Discovery'},
+      {name:'cdn-edge',status:'healthy',uptime:'100.00%',rps:'45,000',p50:'2ms',p99:'8ms',errRate:'0.00%',deps:[],team:'Infrastructure'},
+      {name:'analytics-svc',status:'healthy',uptime:'99.91%',rps:'2,300',p50:'35ms',p99:'120ms',errRate:'0.12%',deps:['event-pipeline'],team:'Data'},
+      {name:'service-mesh',status:'healthy',uptime:'99.99%',rps:'-',p50:'0.5ms',p99:'2ms',errRate:'0.00%',deps:[],team:'Infrastructure'},
+    ];
+
+    document.getElementById('service-cards').innerHTML=services.map((s,i)=>{
+      const dot={healthy:'bg-success',degraded:'bg-warn',down:'bg-danger'}[s.status];
+      const badge={healthy:'badge-healthy',degraded:'badge-degraded',down:'badge-down'}[s.status];
+      const canvasId='svc-chart-'+i;
+      return `<div class="bg-surface-50 border border-white/5 rounded-xl p-5">
+        <div class="flex items-center justify-between mb-3"><div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full ${dot}"></div><span class="text-sm font-medium text-zinc-200">${s.name}</span></div><span class="badge ${badge}">${s.status}</span></div>
+        <div class="relative h-20 mb-3"><canvas id="${canvasId}"></canvas></div>
+        <div class="grid grid-cols-4 gap-2 mb-3">
+          <div><p class="font-mono text-[10px] text-zinc-600">RPS</p><p class="font-mono text-xs text-zinc-400">${s.rps}</p></div>
+          <div><p class="font-mono text-[10px] text-zinc-600">p50</p><p class="font-mono text-xs text-zinc-400">${s.p50}</p></div>
+          <div><p class="font-mono text-[10px] text-zinc-600">p99</p><p class="font-mono text-xs ${s.p99.includes('s')?'text-danger':'text-zinc-400'}">${s.p99}</p></div>
+          <div><p class="font-mono text-[10px] text-zinc-600">Errors</p><p class="font-mono text-xs ${parseFloat(s.errRate)>1?'text-danger':parseFloat(s.errRate)>0.1?'text-warn':'text-zinc-400'}">${s.errRate}</p></div>
+        </div>
+        <div class="flex items-center justify-between"><span class="font-mono text-[10px] text-zinc-600">${s.uptime} uptime</span><span class="font-mono text-[10px] text-zinc-600">${s.team}</span></div>
+        ${s.deps.length?`<div class="mt-3 pt-3 border-t border-white/5"><p class="font-mono text-[10px] text-zinc-600 mb-1.5">Dependencies</p><div class="flex flex-wrap gap-1">${s.deps.map(d=>`<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-surface-300 text-zinc-500">${d}</span>`).join('')}</div></div>`:''}
+      </div>`;
+    }).join('');
+
+    // Sparklines
+    services.forEach((s,i)=>{
+      const color={healthy:'#10b981',degraded:'#f59e0b',down:'#ef4444'}[s.status];
+      const ctx=document.getElementById('svc-chart-'+i);
+      const g=ctx.getContext('2d').createLinearGradient(0,0,0,80);
+      g.addColorStop(0,color+'22');g.addColorStop(1,color+'00');
+      new Chart(ctx,{type:'line',data:{labels:hours.filter((_,j)=>j%4===0),datasets:[{data:gen().filter((_,j)=>j%4===0),borderColor:color,borderWidth:1.5,backgroundColor:g,fill:true,tension:.4,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}}}});
+    });
+  </script>
+</body>
+</html>

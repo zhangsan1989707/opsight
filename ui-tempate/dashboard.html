@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Opsight - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwindcss.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', '"SF Mono"', 'monospace'],
+          },
+          colors: {
+            surface: { DEFAULT: '#09090b', 50: '#111114', 100: '#18181b', 200: '#1f1f23', 300: '#27272a' },
+            accent: { DEFAULT: '#0ea5e9', dim: '#0369a1', glow: 'rgba(14, 165, 233, 0.12)' },
+            warn: '#f59e0b',
+            danger: '#ef4444',
+            success: '#10b981',
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: #09090b;
+      color: #e4e4e7;
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+    /* Sidebar active indicator */
+    .nav-active {
+      background: rgba(14, 165, 233, 0.1);
+      color: #0ea5e9;
+      border-left: 2px solid #0ea5e9;
+    }
+    .nav-item {
+      border-left: 2px solid transparent;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .nav-item:hover {
+      background: rgba(255,255,255,0.03);
+      color: #e4e4e7;
+    }
+
+    /* Table rows */
+    .table-row {
+      transition: background 0.1s ease;
+    }
+    .table-row:hover {
+      background: rgba(255,255,255,0.02);
+    }
+
+    /* Status badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .badge-critical { background: rgba(239,68,68,0.12); color: #f87171; }
+    .badge-warning { background: rgba(245,158,11,0.12); color: #fbbf24; }
+    .badge-resolved { background: rgba(16,185,129,0.12); color: #34d399; }
+    .badge-info { background: rgba(14,165,233,0.12); color: #38bdf8; }
+    .badge-muted { background: rgba(113,113,122,0.12); color: #a1a1aa; }
+
+    /* Pulse dot for live status */
+    @keyframes pulse-live {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .pulse-live {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      animation: pulse-live 2s ease-in-out infinite;
+    }
+
+    /* Sidebar mobile */
+    @media (max-width: 1023px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.25s ease; }
+      .sidebar.open { transform: translateX(0); }
+    }
+
+    /* Chart tooltip override */
+    .chartjs-tooltip {
+      background: #18181b !important;
+      border: 1px solid rgba(255,255,255,0.08) !important;
+      border-radius: 8px !important;
+      font-family: 'Space Grotesk', system-ui !important;
+    }
+  </style>
+</head>
+
+<body class="dark">
+
+  <!-- ====== SIDEBAR ====== -->
+  <aside id="sidebar" class="sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col">
+    <!-- Logo -->
+    <div class="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0">
+      <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="6" fill="#0ea5e9" fill-opacity="0.15"/>
+        <path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+      </svg>
+      <span class="text-white font-semibold tracking-tight">Opsight</span>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 py-3 overflow-y-auto">
+      <div class="px-4 mb-2">
+        <span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Overview</span>
+      </div>
+      <a href="dashboard.html" class="nav-item nav-active flex items-center gap-3 px-5 py-2 text-sm">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+        Dashboard
+      </a>
+      <a href="metrics.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg>
+        Metrics
+      </a>
+      <a href="incidents.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12l3-3h9V2z"/><path d="M6 6h4M6 9h2"/></svg>
+        Incidents
+      </a>
+      <a href="services.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+        Services
+      </a>
+
+      <div class="px-4 mt-5 mb-2">
+        <span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Intelligence</span>
+      </div>
+      <a href="insights.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>
+        AI Insights
+      </a>
+      <a href="topology.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12h12V2z"/><path d="M2 6h12"/></svg>
+        Topology
+      </a>
+      <a href="alerts.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Alert Rules
+      </a>
+
+      <div class="px-4 mt-5 mb-2">
+        <span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Settings</span>
+      </div>
+      <a href="integrations.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>
+        Integrations
+      </a>
+      <a href="team.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+        Team
+      </a>
+    </nav>
+
+    <!-- Sidebar footer -->
+    <div class="px-4 py-3 border-t border-white/5 flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold">LH</div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm text-zinc-300 truncate">Leo Hang</p>
+          <p class="font-mono text-xs text-zinc-600 truncate">Admin</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ====== MAIN ====== -->
+  <div class="lg:ml-60 min-h-screen flex flex-col">
+
+    <!-- Top bar -->
+    <header class="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
+      <!-- Mobile hamburger -->
+      <button id="sidebar-toggle" class="lg:hidden text-zinc-400 hover:text-white" aria-label="Toggle sidebar">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
+        </svg>
+      </button>
+
+      <!-- Breadcrumb -->
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-zinc-500">Opsight</span>
+        <span class="text-zinc-700">/</span>
+        <span class="text-zinc-300">Dashboard</span>
+      </div>
+
+      <div class="flex-1"></div>
+
+      <!-- Search -->
+      <div class="hidden sm:flex items-center gap-2 bg-surface-100 border border-white/5 rounded-lg px-3 py-1.5 w-64">
+        <svg width="14" height="14" fill="none" stroke="#52525b" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="5"/><path d="M10 10l3 3"/></svg>
+        <input type="text" placeholder="Search services, incidents..." class="bg-transparent text-sm text-zinc-300 placeholder-zinc-600 outline-none w-full" />
+        <kbd class="font-mono text-[10px] text-zinc-600 bg-surface-300 px-1.5 py-0.5 rounded">/</kbd>
+      </div>
+
+      <!-- Live status -->
+      <div class="flex items-center gap-2">
+        <div class="pulse-live"></div>
+        <span class="font-mono text-xs text-zinc-500">Live</span>
+      </div>
+
+      <!-- Notifications -->
+      <button class="relative text-zinc-500 hover:text-white transition-colors">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
+        <span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-danger rounded-full"></span>
+      </button>
+    </header>
+
+    <!-- ====== CONTENT ====== -->
+    <main class="flex-1 p-4 sm:p-6 space-y-6">
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Card 1 -->
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-mono text-xs text-zinc-500">Active Incidents</span>
+            <span class="badge badge-critical"><span class="w-1.5 h-1.5 rounded-full bg-danger"></span>Live</span>
+          </div>
+          <p class="text-3xl font-bold text-white tabular-nums">3</p>
+          <div class="flex items-center gap-1.5 mt-2 text-xs">
+            <span class="text-danger">+1</span>
+            <span class="text-zinc-600">from last hour</span>
+          </div>
+        </div>
+        <!-- Card 2 -->
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-mono text-xs text-zinc-500">Avg MTTR</span>
+            <span class="badge badge-resolved">-62%</span>
+          </div>
+          <p class="text-3xl font-bold text-white tabular-nums">4.2<span class="text-base font-normal text-zinc-500 ml-1">min</span></p>
+          <div class="flex items-center gap-1.5 mt-2 text-xs">
+            <span class="text-success">-2.8 min</span>
+            <span class="text-zinc-600">vs last 30d</span>
+          </div>
+        </div>
+        <!-- Card 3 -->
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-mono text-xs text-zinc-500">Services Healthy</span>
+            <span class="badge badge-info">98.8%</span>
+          </div>
+          <p class="text-3xl font-bold text-white tabular-nums">244<span class="text-base font-normal text-zinc-500">/247</span></p>
+          <div class="flex items-center gap-1.5 mt-2 text-xs">
+            <span class="text-zinc-600">across 12 clusters</span>
+          </div>
+        </div>
+        <!-- Card 4 -->
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-mono text-xs text-zinc-500">AI Alerts Today</span>
+            <span class="badge badge-muted">Auto-resolved 73%</span>
+          </div>
+          <p class="text-3xl font-bold text-white tabular-nums">47</p>
+          <div class="flex items-center gap-1.5 mt-2 text-xs">
+            <span class="text-success">34 auto</span>
+            <span class="text-zinc-600">/</span>
+            <span class="text-warn">13 manual</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Error Rate Chart (large) -->
+        <div class="lg:col-span-2 bg-surface-50 border border-white/5 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-sm font-medium text-zinc-200">Error Rate</h3>
+              <p class="font-mono text-xs text-zinc-600 mt-0.5">Last 24 hours</p>
+            </div>
+            <div class="flex gap-1">
+              <button class="font-mono text-xs px-2.5 py-1 rounded-md bg-accent/10 text-accent">24h</button>
+              <button class="font-mono text-xs px-2.5 py-1 rounded-md text-zinc-500 hover:text-zinc-300 transition-colors">7d</button>
+              <button class="font-mono text-xs px-2.5 py-1 rounded-md text-zinc-500 hover:text-zinc-300 transition-colors">30d</button>
+            </div>
+          </div>
+          <div class="relative h-52">
+            <canvas id="errorRateChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Service Health (donut + list) -->
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-5">
+          <h3 class="text-sm font-medium text-zinc-200 mb-4">Service Health</h3>
+          <div class="flex justify-center mb-4">
+            <div class="relative w-36 h-36">
+              <canvas id="healthDonut"></canvas>
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span class="text-2xl font-bold text-white">98.8%</span>
+                <span class="font-mono text-xs text-zinc-500">healthy</span>
+              </div>
+            </div>
+          </div>
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-success"></div>
+                <span class="text-sm text-zinc-400">Healthy</span>
+              </div>
+              <span class="font-mono text-sm text-zinc-300">244</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-warn"></div>
+                <span class="text-sm text-zinc-400">Degraded</span>
+              </div>
+              <span class="font-mono text-sm text-zinc-300">2</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-danger"></div>
+                <span class="text-sm text-zinc-400">Down</span>
+              </div>
+              <span class="font-mono text-sm text-zinc-300">1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Incidents Table + AI Sidebar -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Incidents Table -->
+        <div class="lg:col-span-2 bg-surface-50 border border-white/5 rounded-xl overflow-hidden">
+          <div class="flex items-center justify-between p-4 border-b border-white/5">
+            <h3 class="text-sm font-medium text-zinc-200">Recent Incidents</h3>
+            <a href="#" class="text-xs text-accent hover:text-accent/80 transition-colors">View all</a>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left border-b border-white/5">
+                  <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">ID</th>
+                  <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Summary</th>
+                  <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Service</th>
+                  <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Status</th>
+                  <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Duration</th>
+                  <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Time</th>
+                </tr>
+              </thead>
+              <tbody id="incidents-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- AI Insights Sidebar -->
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <svg width="16" height="16" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>
+            <h3 class="text-sm font-medium text-zinc-200">AI Insights</h3>
+          </div>
+          <div class="space-y-4" id="ai-insights">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Service Map Grid -->
+      <div class="bg-surface-50 border border-white/5 rounded-xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-medium text-zinc-200">Service Overview</h3>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-success"></div><span class="font-mono text-xs text-zinc-500">OK</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-warn"></div><span class="font-mono text-xs text-zinc-500">Degraded</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-danger"></div><span class="font-mono text-xs text-zinc-500">Down</span></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3" id="service-grid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Latency Distribution + Top Errors -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Latency -->
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-5">
+          <h3 class="text-sm font-medium text-zinc-200 mb-1">Latency Distribution</h3>
+          <p class="font-mono text-xs text-zinc-600 mb-4">p50 / p90 / p99 across all endpoints</p>
+          <div class="relative h-48">
+            <canvas id="latencyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Top Errors -->
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-5">
+          <h3 class="text-sm font-medium text-zinc-200 mb-1">Top Errors</h3>
+          <p class="font-mono text-xs text-zinc-600 mb-4">Most frequent in last 24h</p>
+          <div class="space-y-3" id="top-errors">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Overlay for mobile sidebar -->
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
+
+  <!-- ====== SCRIPTS ====== -->
+  <script>
+    // ========== MOCK DATA ==========
+    const MOCK = {
+      incidents: [
+        { id: 'INC-4221', summary: 'Memory leak in auth-svc causing OOM kills', service: 'auth-service', status: 'critical', duration: '14m', time: '2 min ago' },
+        { id: 'INC-4220', summary: 'Elevated 5xx on /api/v2/payments', service: 'payment-gateway', status: 'critical', duration: '8m', time: '12 min ago' },
+        { id: 'INC-4219', summary: 'Redis cluster latency spike > 200ms', service: 'cache-layer', status: 'warning', duration: '23m', time: '28 min ago' },
+        { id: 'INC-4218', summary: 'Disk usage > 90% on us-east-1 node 7', service: 'infra/storage', status: 'warning', duration: '1h 12m', time: '1 hr ago' },
+        { id: 'INC-4217', summary: 'Kafka consumer lag exceeds threshold', service: 'event-pipeline', status: 'resolved', duration: '45m', time: '2 hr ago' },
+        { id: 'INC-4216', summary: 'DNS resolution failure for internal registry', service: 'service-mesh', status: 'resolved', duration: '12m', time: '3 hr ago' },
+        { id: 'INC-4215', summary: 'SSL certificate expiring on api-gateway', service: 'api-gateway', status: 'info', duration: '-', time: '4 hr ago' },
+        { id: 'INC-4214', summary: 'Pod restart loop in notification-svc', service: 'notification-service', status: 'resolved', duration: '38m', time: '5 hr ago' },
+      ],
+      aiInsights: [
+        {
+          type: 'root-cause',
+          title: 'Root cause identified',
+          body: 'auth-svc v2.4.1 disabled session-cache eviction. Memory grows 12 MB/min. Rollback to v2.4.0 or patch cache config.',
+          time: '2 min ago',
+          severity: 'critical',
+        },
+        {
+          type: 'pattern',
+          title: 'Correlated pattern',
+          body: 'Payment 5xx errors correlate with Redis latency spike. Both originated after deploy at 14:05 UTC.',
+          time: '8 min ago',
+          severity: 'warning',
+        },
+        {
+          type: 'prediction',
+          title: 'Capacity forecast',
+          body: 'us-east-1 node 7 disk will reach 95% in ~6 hours at current growth rate. Auto-cleanup triggered.',
+          time: '1 hr ago',
+          severity: 'info',
+        },
+        {
+          type: 'resolved',
+          title: 'Auto-remediated',
+          body: 'Kafka consumer lag resolved by scaling consumer group from 3 to 6 instances. No manual action needed.',
+          time: '2 hr ago',
+          severity: 'success',
+        },
+      ],
+      services: [
+        { name: 'api-gateway', status: 'healthy', rps: '4.2k', p99: '45ms' },
+        { name: 'auth-service', status: 'down', rps: '1.1k', p99: '12s' },
+        { name: 'payment-gateway', status: 'degraded', rps: '890', p99: '2.1s' },
+        { name: 'user-service', status: 'healthy', rps: '3.4k', p99: '32ms' },
+        { name: 'order-service', status: 'healthy', rps: '2.1k', p99: '67ms' },
+        { name: 'notification-svc', status: 'healthy', rps: '560', p99: '28ms' },
+        { name: 'cache-layer', status: 'degraded', rps: '12k', p99: '210ms' },
+        { name: 'event-pipeline', status: 'healthy', rps: '8.7k', p99: '15ms' },
+        { name: 'search-service', status: 'healthy', rps: '1.8k', p99: '89ms' },
+        { name: 'cdn-edge', status: 'healthy', rps: '45k', p99: '8ms' },
+        { name: 'analytics-svc', status: 'healthy', rps: '2.3k', p99: '120ms' },
+        { name: 'service-mesh', status: 'healthy', rps: '-', p99: '2ms' },
+      ],
+      topErrors: [
+        { error: 'OutOfMemoryError: Java heap space', count: 1247, trend: 'up', service: 'auth-service' },
+        { error: 'ConnectionPoolTimeoutException', count: 892, trend: 'up', service: 'payment-gateway' },
+        { error: 'RedisTimeoutException: Command timed out', count: 634, trend: 'stable', service: 'cache-layer' },
+        { error: 'KafkaException: OffsetOutOfRange', count: 201, trend: 'down', service: 'event-pipeline' },
+        { error: 'SSLHandshakeException: Remote host closed', count: 89, trend: 'down', service: 'api-gateway' },
+      ],
+    };
+
+    // ========== RENDER INCIDENTS TABLE ==========
+    function renderIncidents() {
+      const tbody = document.getElementById('incidents-body');
+      tbody.innerHTML = MOCK.incidents.map(inc => {
+        const badgeClass = {
+          critical: 'badge-critical',
+          warning: 'badge-warning',
+          resolved: 'badge-resolved',
+          info: 'badge-info',
+        }[inc.status] || 'badge-muted';
+
+        const statusLabel = inc.status.charAt(0).toUpperCase() + inc.status.slice(1);
+
+        return `<tr class="table-row border-b border-white/[0.03]">
+          <td class="px-4 py-3 font-mono text-xs text-zinc-500">${inc.id}</td>
+          <td class="px-4 py-3 text-zinc-300 max-w-[280px] truncate">${inc.summary}</td>
+          <td class="px-4 py-3 font-mono text-xs text-zinc-400">${inc.service}</td>
+          <td class="px-4 py-3"><span class="badge ${badgeClass}">${statusLabel}</span></td>
+          <td class="px-4 py-3 font-mono text-xs text-zinc-500">${inc.duration}</td>
+          <td class="px-4 py-3 font-mono text-xs text-zinc-600">${inc.time}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ========== RENDER AI INSIGHTS ==========
+    function renderAiInsights() {
+      const container = document.getElementById('ai-insights');
+      container.innerHTML = MOCK.aiInsights.map(insight => {
+        const iconMap = {
+          'root-cause': { color: '#ef4444', path: '<circle cx="8" cy="8" r="6"/><path d="M8 5v3M8 10.5v.5"/>' },
+          'pattern': { color: '#f59e0b', path: '<path d="M2 12h4l3-8 4 16 3-8h4"/>' },
+          'prediction': { color: '#0ea5e9', path: '<circle cx="8" cy="8" r="6"/><path d="M8 4v4l2 2"/>' },
+          'resolved': { color: '#10b981', path: '<circle cx="8" cy="8" r="6"/><path d="M5.5 8l2 2 4-4"/>' },
+        };
+        const icon = iconMap[insight.type];
+
+        return `<div class="border-l-2 pl-3" style="border-color: ${icon.color}30">
+          <div class="flex items-center gap-2 mb-1">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="${icon.color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${icon.path}</svg>
+            <span class="text-xs font-medium" style="color: ${icon.color}">${insight.title}</span>
+          </div>
+          <p class="text-xs text-zinc-400 leading-relaxed mb-1">${insight.body}</p>
+          <span class="font-mono text-[10px] text-zinc-600">${insight.time}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // ========== RENDER SERVICE GRID ==========
+    function renderServiceGrid() {
+      const grid = document.getElementById('service-grid');
+      grid.innerHTML = MOCK.services.map(svc => {
+        const dotColor = { healthy: 'bg-success', degraded: 'bg-warn', down: 'bg-danger' }[svc.status];
+        const borderColor = { healthy: 'border-white/5', degraded: 'border-warn/20', down: 'border-danger/30' }[svc.status];
+
+        return `<div class="bg-surface border ${borderColor} rounded-lg p-3 hover:bg-surface-100 transition-colors cursor-pointer">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-1.5 h-1.5 rounded-full ${dotColor}"></div>
+            <span class="text-xs font-medium text-zinc-300 truncate">${svc.name}</span>
+          </div>
+          <div class="flex justify-between font-mono text-[10px] text-zinc-500">
+            <span>${svc.rps} rps</span>
+            <span>p99 ${svc.p99}</span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // ========== RENDER TOP ERRORS ==========
+    function renderTopErrors() {
+      const container = document.getElementById('top-errors');
+      const maxCount = MOCK.topErrors[0].count;
+
+      container.innerHTML = MOCK.topErrors.map(err => {
+        const width = Math.round((err.count / maxCount) * 100);
+        const trendIcon = {
+          up: '<svg width="12" height="12" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="M2 9l4-4 4 4"/></svg>',
+          down: '<svg width="12" height="12" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round"><path d="M2 3l4 4 4-4"/></svg>',
+          stable: '<svg width="12" height="12" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round"><path d="M2 6h8"/></svg>',
+        }[err.trend];
+
+        return `<div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs text-zinc-300 truncate max-w-[240px]">${err.error}</span>
+            <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
+              <span class="font-mono text-xs text-zinc-500">${err.count.toLocaleString()}</span>
+              ${trendIcon}
+            </div>
+          </div>
+          <div class="h-1 bg-surface-300 rounded-full overflow-hidden">
+            <div class="h-full bg-accent/30 rounded-full transition-all duration-700" style="width: ${width}%"></div>
+          </div>
+          <span class="font-mono text-[10px] text-zinc-600">${err.service}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // ========== CHARTS ==========
+    function initCharts() {
+      // Chart.js global defaults
+      Chart.defaults.color = '#52525b';
+      Chart.defaults.borderColor = 'rgba(255,255,255,0.04)';
+      Chart.defaults.font.family = "'JetBrains Mono', monospace";
+      Chart.defaults.font.size = 10;
+
+      // Error Rate Chart
+      const errorLabels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
+      const errorData = [0.12, 0.10, 0.08, 0.09, 0.11, 0.15, 0.18, 0.22, 0.31, 0.45, 0.38, 0.29, 0.24, 0.20, 0.18, 0.15, 0.21, 0.33, 0.41, 0.52, 0.38, 0.28, 0.19, 0.14];
+      const anomalyIdx = 20;
+
+      const errorCtx = document.getElementById('errorRateChart').getContext('2d');
+      const gradient = errorCtx.createLinearGradient(0, 0, 0, 200);
+      gradient.addColorStop(0, 'rgba(14, 165, 233, 0.15)');
+      gradient.addColorStop(1, 'rgba(14, 165, 233, 0)');
+
+      new Chart(errorCtx, {
+        type: 'line',
+        data: {
+          labels: errorLabels,
+          datasets: [{
+            data: errorData,
+            borderColor: '#0ea5e9',
+            borderWidth: 2,
+            backgroundColor: gradient,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            pointHoverBackgroundColor: '#0ea5e9',
+            pointHoverBorderColor: '#09090b',
+            pointHoverBorderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#18181b',
+              borderColor: 'rgba(255,255,255,0.08)',
+              borderWidth: 1,
+              titleColor: '#a1a1aa',
+              bodyColor: '#e4e4e7',
+              padding: 10,
+              cornerRadius: 8,
+              displayColors: false,
+              callbacks: {
+                label: (ctx) => `Error rate: ${ctx.parsed.y.toFixed(2)}%`,
+              },
+            },
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { maxTicksLimit: 8 },
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.03)' },
+              ticks: { callback: v => v.toFixed(1) + '%' },
+              min: 0,
+            },
+          },
+        },
+      });
+
+      // Health Donut
+      new Chart(document.getElementById('healthDonut'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Healthy', 'Degraded', 'Down'],
+          datasets: [{
+            data: [244, 2, 1],
+            backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+            borderWidth: 0,
+            hoverOffset: 4,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          cutout: '78%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#18181b',
+              borderColor: 'rgba(255,255,255,0.08)',
+              borderWidth: 1,
+              bodyColor: '#e4e4e7',
+              padding: 8,
+              cornerRadius: 8,
+            },
+          },
+        },
+      });
+
+      // Latency Chart (bar)
+      const latencyCtx = document.getElementById('latencyChart').getContext('2d');
+      const svcLabels = ['api-gw', 'auth', 'payment', 'user', 'order', 'notify', 'cache', 'events', 'search', 'cdn', 'analytics', 'mesh'];
+      const p50 = [12, 8500, 1200, 8, 18, 6, 85, 4, 22, 2, 35, 1];
+      const p90 = [28, 10000, 1800, 22, 45, 18, 150, 10, 55, 5, 80, 1.5];
+      const p99 = [45, 12000, 2100, 32, 67, 28, 210, 15, 89, 8, 120, 2];
+
+      new Chart(latencyCtx, {
+        type: 'bar',
+        data: {
+          labels: svcLabels,
+          datasets: [
+            { label: 'p50', data: p50, backgroundColor: 'rgba(14, 165, 233, 0.3)', borderRadius: 2 },
+            { label: 'p90', data: p90, backgroundColor: 'rgba(245, 158, 11, 0.3)', borderRadius: 2 },
+            { label: 'p99', data: p99, backgroundColor: 'rgba(239, 68, 68, 0.3)', borderRadius: 2 },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              align: 'end',
+              labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'rectRounded', padding: 12 },
+            },
+            tooltip: {
+              backgroundColor: '#18181b',
+              borderColor: 'rgba(255,255,255,0.08)',
+              borderWidth: 1,
+              bodyColor: '#e4e4e7',
+              padding: 10,
+              cornerRadius: 8,
+              callbacks: {
+                label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y >= 1000 ? (ctx.parsed.y / 1000).toFixed(1) + 's' : ctx.parsed.y + 'ms'}`,
+              },
+            },
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { maxRotation: 45 } },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.03)' },
+              ticks: {
+                callback: v => v >= 1000 ? (v / 1000).toFixed(0) + 's' : v + 'ms',
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // ========== SIDEBAR TOGGLE ==========
+    const sidebar = document.getElementById('sidebar');
+    const toggle = document.getElementById('sidebar-toggle');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    toggle.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('hidden');
+    });
+    overlay.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      overlay.classList.add('hidden');
+    });
+
+    // ========== INIT ==========
+    renderIncidents();
+    renderAiInsights();
+    renderServiceGrid();
+    renderTopErrors();
+    initCharts();
+  </script>
+
+</body>
+</html>

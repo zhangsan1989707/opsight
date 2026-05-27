@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Opsight - Team</title>
+  <script src="https://cdn.tailwindcss.com"></script><script>tailwindcss.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['"Space Grotesk"','system-ui','sans-serif'],mono:['"JetBrains Mono"','"SF Mono"','monospace']},colors:{surface:{DEFAULT:'#09090b',50:'#111114',100:'#18181b',200:'#1f1f23',300:'#27272a'},accent:{DEFAULT:'#0ea5e9',dim:'#0369a1'},warn:'#f59e0b',danger:'#ef4444',success:'#10b981'}}}}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box}body{margin:0;background:#09090b;color:#e4e4e7;font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
+    .nav-active{background:rgba(14,165,233,0.1);color:#0ea5e9;border-left:2px solid #0ea5e9}.nav-item{border-left:2px solid transparent;transition:background .15s,color .15s}.nav-item:hover{background:rgba(255,255,255,0.03);color:#e4e4e7}
+    @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.4}}.pulse-live{width:6px;height:6px;border-radius:50%;background:#10b981;animation:pulse-live 2s ease-in-out infinite}
+    @media(max-width:1023px){.sidebar{transform:translateX(-100%);transition:transform .25s}.sidebar.open{transform:translateX(0)}}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;font-family:'JetBrains Mono',monospace}
+    .badge-admin{background:rgba(14,165,233,0.12);color:#38bdf8}.badge-editor{background:rgba(16,185,129,0.12);color:#34d399}.badge-viewer{background:rgba(113,113,122,0.12);color:#a1a1aa}
+    .online-dot{width:6px;height:6px;border-radius:50%;background:#10b981}.offline-dot{width:6px;height:6px;border-radius:50%;background:#3f3f46}
+  </style>
+</head>
+<body class="dark">
+  <aside id="sidebar" class="sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col">
+    <div class="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0"><svg width="24" height="24" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#0ea5e9" fill-opacity="0.15"/><path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg><span class="text-white font-semibold tracking-tight">Opsight</span></div>
+    <nav class="flex-1 py-3 overflow-y-auto">
+      <div class="px-4 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Overview</span></div>
+      <a href="dashboard.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Dashboard</a>
+      <a href="metrics.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg>Metrics</a>
+      <a href="incidents.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12l3-3h9V2z"/><path d="M6 6h4M6 9h2"/></svg>Incidents</a>
+      <a href="services.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Services</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Intelligence</span></div>
+      <a href="insights.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>AI Insights</a>
+      <a href="topology.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12h12V2z"/><path d="M2 6h12"/></svg>Topology</a>
+      <a href="alerts.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Alert Rules</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Settings</span></div>
+      <a href="integrations.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>Integrations</a>
+      <a href="team.html" class="nav-item nav-active flex items-center gap-3 px-5 py-2 text-sm"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Team</a>
+    </nav>
+    <div class="px-4 py-3 border-t border-white/5 flex-shrink-0"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold">LH</div><div class="flex-1 min-w-0"><p class="text-sm text-zinc-300 truncate">Leo Hang</p><p class="font-mono text-xs text-zinc-600 truncate">Admin</p></div></div></div>
+  </aside>
+  <div class="lg:ml-60 min-h-screen flex flex-col">
+    <header class="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
+      <button id="sidebar-toggle" class="lg:hidden text-zinc-400 hover:text-white"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg></button>
+      <div class="flex items-center gap-2 text-sm"><span class="text-zinc-500">Opsight</span><span class="text-zinc-700">/</span><span class="text-zinc-300">Team</span></div>
+      <div class="flex-1"></div>
+      <button class="text-sm font-medium bg-accent text-white px-4 py-1.5 rounded-lg hover:bg-accent/90 transition-colors">Invite Member</button>
+      <div class="flex items-center gap-2"><div class="pulse-live"></div><span class="font-mono text-xs text-zinc-500">Live</span></div>
+    </header>
+    <main class="flex-1 p-4 sm:p-6 space-y-6">
+      <div><h1 class="text-xl font-semibold text-white">Team</h1><p class="text-sm text-zinc-500 mt-0.5">Manage members, roles, and permissions</p></div>
+
+      <!-- Summary -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Members</span><p class="text-2xl font-bold text-white mt-1">8</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Online Now</span><p class="text-2xl font-bold text-success mt-1">5</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Admins</span><p class="text-2xl font-bold text-accent mt-1">2</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Pending Invites</span><p class="text-2xl font-bold text-warn mt-1">1</p></div>
+      </div>
+
+      <!-- Members Table -->
+      <div class="bg-surface-50 border border-white/5 rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left border-b border-white/5">
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Member</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Role</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Team</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Status</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Last Active</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Incidents Resolved</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody id="team-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Roles & Permissions -->
+      <div class="bg-surface-50 border border-white/5 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-white/5"><h3 class="text-sm font-medium text-zinc-200">Roles & Permissions</h3></div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead><tr class="text-left border-b border-white/5">
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Permission</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5 text-center">Admin</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5 text-center">Editor</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5 text-center">Viewer</th>
+            </tr></thead>
+            <tbody id="perms-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
+  <script>
+    const sb=document.getElementById('sidebar'),tg=document.getElementById('sidebar-toggle'),ov=document.getElementById('sidebar-overlay');
+    tg.addEventListener('click',()=>{sb.classList.toggle('open');ov.classList.toggle('hidden')});ov.addEventListener('click',()=>{sb.classList.remove('open');ov.classList.add('hidden')});
+
+    const members=[
+      {name:'Leo Hang',email:'leo.hang@opsight.io',initials:'LH',role:'admin',team:'Platform',online:true,last:'Now',resolved:47},
+      {name:'Sarah Chen',email:'sarah.chen@opsight.io',initials:'SC',role:'admin',team:'Infrastructure',online:true,last:'5 min ago',resolved:32},
+      {name:'Marcus Johnson',email:'marcus.j@opsight.io',initials:'MJ',role:'editor',team:'Identity',online:true,last:'1 hr ago',resolved:18},
+      {name:'Priya Patel',email:'priya.p@opsight.io',initials:'PP',role:'editor',team:'Payments',online:true,last:'30 min ago',resolved:24},
+      {name:'Alex Kim',email:'alex.kim@opsight.io',initials:'AK',role:'editor',team:'Data',online:false,last:'3 hr ago',resolved:15},
+      {name:'Jordan Lee',email:'jordan.lee@opsight.io',initials:'JL',role:'viewer',team:'Commerce',online:false,last:'1 day ago',resolved:3},
+      {name:'Emily Wang',email:'emily.w@opsight.io',initials:'EW',role:'editor',team:'Platform',online:true,last:'10 min ago',resolved:21},
+      {name:'David Torres',email:'david.t@opsight.io',initials:'DT',role:'viewer',team:'Discovery',online:false,last:'2 days ago',resolved:1},
+    ];
+
+    const badgeMap={admin:'badge-admin',editor:'badge-editor',viewer:'badge-viewer'};
+    const avatarColors=['bg-accent/15 text-accent','bg-success/15 text-success','bg-warn/15 text-warn','bg-danger/15 text-danger'];
+
+    document.getElementById('team-body').innerHTML=members.map((m,i)=>{
+      const dot=m.online?'online-dot':'offline-dot';
+      return `<tr class="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+        <td class="px-4 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full ${avatarColors[i%avatarColors.length]} flex items-center justify-center text-xs font-semibold">${m.initials}</div><div><p class="text-zinc-300 text-sm">${m.name}</p><p class="font-mono text-[10px] text-zinc-600">${m.email}</p></div></div></td>
+        <td class="px-4 py-3"><span class="badge ${badgeMap[m.role]}">${m.role}</span></td>
+        <td class="px-4 py-3 font-mono text-xs text-zinc-500">${m.team}</td>
+        <td class="px-4 py-3"><div class="flex items-center gap-2"><div class="${dot}"></div><span class="font-mono text-[10px] ${m.online?'text-success':'text-zinc-600'}">${m.online?'Online':'Offline'}</span></div></td>
+        <td class="px-4 py-3 font-mono text-xs text-zinc-600">${m.last}</td>
+        <td class="px-4 py-3 font-mono text-xs text-zinc-400">${m.resolved}</td>
+        <td class="px-4 py-3"><button class="text-zinc-600 hover:text-zinc-300 transition-colors"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="3" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="8" cy="13" r="1"/></svg></button></td>
+      </tr>`;
+    }).join('');
+
+    // Permissions table
+    const perms=[
+      {name:'View dashboards & metrics',admin:true,editor:true,viewer:true},
+      {name:'Acknowledge incidents',admin:true,editor:true,viewer:false},
+      {name:'Resolve incidents',admin:true,editor:true,viewer:false},
+      {name:'Create / edit alert rules',admin:true,editor:true,viewer:false},
+      {name:'Manage integrations',admin:true,editor:false,viewer:false},
+      {name:'Invite / remove members',admin:true,editor:false,viewer:false},
+      {name:'Change team settings',admin:true,editor:false,viewer:false},
+      {name:'Export data & reports',admin:true,editor:true,viewer:false},
+    ];
+    const check='<svg width="14" height="14" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l3 3 5-5"/></svg>';
+    const cross='<svg width="14" height="14" fill="none" stroke="#3f3f46" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>';
+    document.getElementById('perms-body').innerHTML=perms.map(p=>`<tr class="border-b border-white/[0.03]">
+      <td class="px-4 py-2.5 text-zinc-400">${p.name}</td>
+      <td class="px-4 py-2.5 text-center">${p.admin?check:cross}</td>
+      <td class="px-4 py-2.5 text-center">${p.editor?check:cross}</td>
+      <td class="px-4 py-2.5 text-center">${p.viewer?check:cross}</td>
+    </tr>`).join('');
+  </script>
+</body>
+</html>

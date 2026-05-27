@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Opsight - Incidents</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwindcss.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['"Space Grotesk"','system-ui','sans-serif'],mono:['"JetBrains Mono"','"SF Mono"','monospace']},colors:{surface:{DEFAULT:'#09090b',50:'#111114',100:'#18181b',200:'#1f1f23',300:'#27272a'},accent:{DEFAULT:'#0ea5e9',dim:'#0369a1'},warn:'#f59e0b',danger:'#ef4444',success:'#10b981'}}}}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box}body{margin:0;background:#09090b;color:#e4e4e7;font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
+    .nav-active{background:rgba(14,165,233,0.1);color:#0ea5e9;border-left:2px solid #0ea5e9}.nav-item{border-left:2px solid transparent;transition:background .15s,color .15s}.nav-item:hover{background:rgba(255,255,255,0.03);color:#e4e4e7}
+    @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.4}}.pulse-live{width:6px;height:6px;border-radius:50%;background:#10b981;animation:pulse-live 2s ease-in-out infinite}
+    @media(max-width:1023px){.sidebar{transform:translateX(-100%);transition:transform .25s}.sidebar.open{transform:translateX(0)}}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;font-family:'JetBrains Mono',monospace}
+    .badge-critical{background:rgba(239,68,68,0.12);color:#f87171}.badge-warning{background:rgba(245,158,11,0.12);color:#fbbf24}.badge-resolved{background:rgba(16,185,129,0.12);color:#34d399}.badge-info{background:rgba(14,165,233,0.12);color:#38bdf8}.badge-muted{background:rgba(113,113,122,0.12);color:#a1a1aa}
+    select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2352525b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+  </style>
+</head>
+<body class="dark">
+  <aside id="sidebar" class="sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col">
+    <div class="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0"><svg width="24" height="24" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#0ea5e9" fill-opacity="0.15"/><path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg><span class="text-white font-semibold tracking-tight">Opsight</span></div>
+    <nav class="flex-1 py-3 overflow-y-auto">
+      <div class="px-4 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Overview</span></div>
+      <a href="dashboard.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Dashboard</a>
+      <a href="metrics.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg>Metrics</a>
+      <a href="incidents.html" class="nav-item nav-active flex items-center gap-3 px-5 py-2 text-sm"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12l3-3h9V2z"/><path d="M6 6h4M6 9h2"/></svg>Incidents</a>
+      <a href="services.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Services</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Intelligence</span></div>
+      <a href="insights.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>AI Insights</a>
+      <a href="topology.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12h12V2z"/><path d="M2 6h12"/></svg>Topology</a>
+      <a href="alerts.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Alert Rules</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Settings</span></div>
+      <a href="integrations.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>Integrations</a>
+      <a href="team.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Team</a>
+    </nav>
+    <div class="px-4 py-3 border-t border-white/5 flex-shrink-0"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold">LH</div><div class="flex-1 min-w-0"><p class="text-sm text-zinc-300 truncate">Leo Hang</p><p class="font-mono text-xs text-zinc-600 truncate">Admin</p></div></div></div>
+  </aside>
+  <div class="lg:ml-60 min-h-screen flex flex-col">
+    <header class="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
+      <button id="sidebar-toggle" class="lg:hidden text-zinc-400 hover:text-white" aria-label="Menu"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg></button>
+      <div class="flex items-center gap-2 text-sm"><span class="text-zinc-500">Opsight</span><span class="text-zinc-700">/</span><span class="text-zinc-300">Incidents</span></div>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-2"><div class="pulse-live"></div><span class="font-mono text-xs text-zinc-500">Live</span></div>
+      <button class="relative text-zinc-500 hover:text-white transition-colors"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg><span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-danger rounded-full"></span></button>
+    </header>
+
+    <main class="flex-1 p-4 sm:p-6 space-y-6">
+      <!-- Header -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div><h1 class="text-xl font-semibold text-white">Incidents</h1><p class="text-sm text-zinc-500 mt-0.5">Track and resolve active incidents</p></div>
+        <div class="flex items-center gap-2">
+          <span class="badge badge-critical">3 Critical</span>
+          <span class="badge badge-warning">2 Warning</span>
+          <span class="badge badge-resolved">3 Resolved</span>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="flex flex-wrap items-center gap-3">
+        <input type="text" placeholder="Search incidents..." class="bg-surface-100 border border-white/5 text-sm text-zinc-300 placeholder-zinc-600 rounded-lg px-3 py-2 outline-none focus:border-accent/30 w-64" />
+        <select class="bg-surface-100 border border-white/5 text-sm text-zinc-300 rounded-lg px-3 py-2 pr-8 outline-none focus:border-accent/30"><option>All Status</option><option>Critical</option><option>Warning</option><option>Resolved</option></select>
+        <select class="bg-surface-100 border border-white/5 text-sm text-zinc-300 rounded-lg px-3 py-2 pr-8 outline-none focus:border-accent/30"><option>All Services</option><option>auth-service</option><option>payment-gateway</option><option>cache-layer</option></select>
+        <select class="bg-surface-100 border border-white/5 text-sm text-zinc-300 rounded-lg px-3 py-2 pr-8 outline-none focus:border-accent/30"><option>Last 24 hours</option><option>Last 7 days</option><option>Last 30 days</option></select>
+      </div>
+
+      <!-- Incidents list -->
+      <div class="space-y-3" id="incidents-list"></div>
+
+      <!-- Pagination -->
+      <div class="flex items-center justify-between">
+        <span class="font-mono text-xs text-zinc-600">Showing 8 of 4,221 incidents</span>
+        <div class="flex items-center gap-1">
+          <button class="px-3 py-1.5 text-xs text-zinc-500 bg-surface-100 border border-white/5 rounded-lg hover:text-zinc-300 transition-colors">Prev</button>
+          <button class="px-3 py-1.5 text-xs text-accent bg-accent/10 border border-accent/20 rounded-lg">1</button>
+          <button class="px-3 py-1.5 text-xs text-zinc-500 bg-surface-100 border border-white/5 rounded-lg hover:text-zinc-300 transition-colors">2</button>
+          <button class="px-3 py-1.5 text-xs text-zinc-500 bg-surface-100 border border-white/5 rounded-lg hover:text-zinc-300 transition-colors">3</button>
+          <span class="text-zinc-600 text-xs px-1">...</span>
+          <button class="px-3 py-1.5 text-xs text-zinc-500 bg-surface-100 border border-white/5 rounded-lg hover:text-zinc-300 transition-colors">422</button>
+          <button class="px-3 py-1.5 text-xs text-zinc-500 bg-surface-100 border border-white/5 rounded-lg hover:text-zinc-300 transition-colors">Next</button>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
+
+  <script>
+    const sb=document.getElementById('sidebar'),tg=document.getElementById('sidebar-toggle'),ov=document.getElementById('sidebar-overlay');
+    tg.addEventListener('click',()=>{sb.classList.toggle('open');ov.classList.toggle('hidden')});ov.addEventListener('click',()=>{sb.classList.remove('open');ov.classList.add('hidden')});
+
+    const incidents=[
+      {id:'INC-4221',summary:'Memory leak in auth-svc causing OOM kills on us-east-1 nodes 3, 5',service:'auth-service',status:'critical',duration:'14m',time:'2 min ago',assignee:'Leo Hang',aiRootCause:'session-cache eviction disabled after deploy v2.4.1',aiFix:'Rollback to v2.4.0 or patch cache config',timeline:[{t:'14:23:01',e:'CPU spike detected on us-east-1 node 3'},{t:'14:23:04',e:'Memory usage crossed 90% threshold'},{t:'14:23:08',e:'OOM kill on pod auth-svc-7d4f9-xk2lm'},{t:'14:23:09',e:'AI: Root cause identified - cache eviction disabled'},{t:'14:23:10',e:'AI: Remediation suggested - rollback or patch'}]},
+      {id:'INC-4220',summary:'Elevated 5xx error rate on /api/v2/payments endpoint',service:'payment-gateway',status:'critical',duration:'8m',time:'12 min ago',assignee:'Unassigned',aiRootCause:'Correlated with Redis latency spike after deploy at 14:05 UTC',aiFix:'Scale Redis cluster or revert deploy',timeline:[{t:'14:12:30',e:'5xx rate spiked to 4.2% on payments'},{t:'14:13:00',e:'Alert triggered: error rate > 1%'},{t:'14:14:15',e:'AI: Correlated with Redis timeout increase'}]},
+      {id:'INC-4219',summary:'Redis cluster latency spike exceeding 200ms on cache-layer',service:'cache-layer',status:'warning',duration:'23m',time:'28 min ago',assignee:'Unassigned',aiRootCause:'Memory pressure from auth-svc overflow hitting shared Redis',aiFix:'Isolate auth-svc cache namespace',timeline:[{t:'14:00:12',e:'Redis p99 latency crossed 200ms'},{t:'14:05:00',e:'Alert: latency above threshold for 5m'}]},
+      {id:'INC-4218',summary:'Disk usage above 90% on us-east-1 node 7, growth rate 2.1 GB/hr',service:'infra/storage',status:'warning',duration:'1h 12m',time:'1 hr ago',assignee:'Sarah Chen',aiRootCause:'Log rotation misconfigured after infra update',aiFix:'Enable log rotation, clean /var/log/app',timeline:[{t:'13:11:00',e:'Disk usage alert: 90%'},{t:'13:30:00',e:'AI: Auto-cleanup triggered for tmp files'}]},
+      {id:'INC-4217',summary:'Kafka consumer lag exceeds 10,000 on event-pipeline',service:'event-pipeline',status:'resolved',duration:'45m',time:'2 hr ago',assignee:'Leo Hang',aiRootCause:'Consumer group scaled down during maintenance, not scaled back',aiFix:'Auto-scaled consumer group from 3 to 6 instances',timeline:[{t:'12:00:00',e:'Consumer lag alert'},{t:'12:20:00',e:'AI: Auto-scaled consumers'},{t:'12:45:00',e:'Lag back to normal, auto-resolved'}]},
+      {id:'INC-4216',summary:'DNS resolution failure for internal service registry',service:'service-mesh',status:'resolved',duration:'12m',time:'3 hr ago',assignee:'Sarah Chen',aiRootCause:'CoreDNS pod crashed, auto-restarted by k8s',aiFix:'No action needed - self-healed',timeline:[{t:'11:30:00',e:'DNS resolution failures'},{t:'11:35:00',e:'CoreDNS pod restarted'},{t:'11:42:00',e:'Resolution restored'}]},
+      {id:'INC-4215',summary:'SSL certificate for api-gateway expires in 7 days',service:'api-gateway',status:'info',duration:'-',time:'4 hr ago',assignee:'Auto',aiRootCause:'Cert-manager renewal pending DNS validation',aiFix:'Trigger manual renewal or fix DNS challenge',timeline:[{t:'10:00:00',e:'Certificate expiry warning'}]},
+      {id:'INC-4214',summary:'Pod restart loop in notification-svc (CrashLoopBackOff)',service:'notification-service',status:'resolved',duration:'38m',time:'5 hr ago',assignee:'Leo Hang',aiRootCause:'Missing SMTP env var after config migration',aiFix:'Added SMTP_HOST to deployment manifest',timeline:[{t:'09:00:00',e:'CrashLoopBackOff detected'},{t:'09:15:00',e:'AI: Missing SMTP_HOST env var'},{t:'09:38:00',e:'Fix deployed, pods stable'}]},
+    ];
+
+    const badgeMap={critical:'badge-critical',warning:'badge-warning',resolved:'badge-resolved',info:'badge-info'};
+    const statusLabel=s=>s.charAt(0).toUpperCase()+s.slice(1);
+
+    document.getElementById('incidents-list').innerHTML=incidents.map(inc=>`
+      <div class="bg-surface-50 border border-white/5 rounded-xl overflow-hidden">
+        <div class="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div class="flex items-center gap-3 flex-1 min-w-0">
+            <span class="badge ${badgeMap[inc.status]} flex-shrink-0">${statusLabel(inc.status)}</span>
+            <span class="font-mono text-xs text-zinc-500 flex-shrink-0">${inc.id}</span>
+            <span class="text-sm text-zinc-200 truncate">${inc.summary}</span>
+          </div>
+          <div class="flex items-center gap-4 flex-shrink-0">
+            <span class="font-mono text-xs text-zinc-500">${inc.service}</span>
+            <span class="font-mono text-xs text-zinc-600">${inc.duration}</span>
+            <span class="font-mono text-xs text-zinc-600">${inc.time}</span>
+            <button class="incident-toggle text-zinc-500 hover:text-white transition-colors" data-id="${inc.id}"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>
+          </div>
+        </div>
+        <div class="detail hidden border-t border-white/5 p-4 bg-surface/50" data-detail="${inc.id}">
+          <div class="grid md:grid-cols-2 gap-6">
+            <div>
+              <h4 class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 mb-3">Timeline</h4>
+              <div class="space-y-2">${inc.timeline.map(t=>`<div class="flex gap-3"><span class="font-mono text-xs text-zinc-600 w-16 flex-shrink-0">${t.t}</span><span class="text-xs text-zinc-400">${t.e}</span></div>`).join('')}</div>
+            </div>
+            <div>
+              <h4 class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 mb-3">AI Analysis</h4>
+              <div class="space-y-3">
+                <div class="bg-surface-100 border border-white/5 rounded-lg p-3"><p class="font-mono text-[10px] text-zinc-500 mb-1">Root Cause</p><p class="text-xs text-zinc-300">${inc.aiRootCause}</p></div>
+                <div class="bg-surface-100 border border-white/5 rounded-lg p-3"><p class="font-mono text-[10px] text-zinc-500 mb-1">Suggested Fix</p><p class="text-xs text-zinc-300">${inc.aiFix}</p></div>
+                <div class="flex items-center gap-2"><span class="font-mono text-[10px] text-zinc-600">Assignee:</span><span class="text-xs text-zinc-400">${inc.assignee}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // Toggle detail panels
+    document.querySelectorAll('.incident-toggle').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const id=btn.dataset.id;
+        const detail=document.querySelector(`[data-detail="${id}"]`);
+        detail.classList.toggle('hidden');
+        btn.querySelector('svg').style.transform=detail.classList.contains('hidden')?'':'rotate(180deg)';
+      });
+    });
+  </script>
+</body>
+</html>

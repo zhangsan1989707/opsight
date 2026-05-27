@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Opsight - Integrations</title>
+  <script src="https://cdn.tailwindcss.com"></script><script>tailwindcss.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['"Space Grotesk"','system-ui','sans-serif'],mono:['"JetBrains Mono"','"SF Mono"','monospace']},colors:{surface:{DEFAULT:'#09090b',50:'#111114',100:'#18181b',200:'#1f1f23',300:'#27272a'},accent:{DEFAULT:'#0ea5e9',dim:'#0369a1'},warn:'#f59e0b',danger:'#ef4444',success:'#10b981'}}}}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box}body{margin:0;background:#09090b;color:#e4e4e7;font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
+    .nav-active{background:rgba(14,165,233,0.1);color:#0ea5e9;border-left:2px solid #0ea5e9}.nav-item{border-left:2px solid transparent;transition:background .15s,color .15s}.nav-item:hover{background:rgba(255,255,255,0.03);color:#e4e4e7}
+    @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.4}}.pulse-live{width:6px;height:6px;border-radius:50%;background:#10b981;animation:pulse-live 2s ease-in-out infinite}
+    @media(max-width:1023px){.sidebar{transform:translateX(-100%);transition:transform .25s}.sidebar.open{transform:translateX(0)}}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;font-family:'JetBrains Mono',monospace}
+    .badge-connected{background:rgba(16,185,129,0.12);color:#34d399}.badge-disconnected{background:rgba(113,113,122,0.12);color:#a1a1aa}.badge-error{background:rgba(239,68,68,0.12);color:#f87171}
+    .toggle-track{width:36px;height:20px;border-radius:10px;background:#27272a;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+    .toggle-track.on{background:rgba(14,165,233,0.3)}
+    .toggle-thumb{width:16px;height:16px;border-radius:50%;background:#71717a;position:absolute;top:2px;left:2px;transition:transform .2s,background .2s}
+    .toggle-track.on .toggle-thumb{transform:translateX(16px);background:#0ea5e9}
+  </style>
+</head>
+<body class="dark">
+  <aside id="sidebar" class="sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col">
+    <div class="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0"><svg width="24" height="24" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#0ea5e9" fill-opacity="0.15"/><path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg><span class="text-white font-semibold tracking-tight">Opsight</span></div>
+    <nav class="flex-1 py-3 overflow-y-auto">
+      <div class="px-4 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Overview</span></div>
+      <a href="dashboard.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Dashboard</a>
+      <a href="metrics.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg>Metrics</a>
+      <a href="incidents.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12l3-3h9V2z"/><path d="M6 6h4M6 9h2"/></svg>Incidents</a>
+      <a href="services.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Services</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Intelligence</span></div>
+      <a href="insights.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>AI Insights</a>
+      <a href="topology.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12h12V2z"/><path d="M2 6h12"/></svg>Topology</a>
+      <a href="alerts.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Alert Rules</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Settings</span></div>
+      <a href="integrations.html" class="nav-item nav-active flex items-center gap-3 px-5 py-2 text-sm"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>Integrations</a>
+      <a href="team.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Team</a>
+    </nav>
+    <div class="px-4 py-3 border-t border-white/5 flex-shrink-0"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold">LH</div><div class="flex-1 min-w-0"><p class="text-sm text-zinc-300 truncate">Leo Hang</p><p class="font-mono text-xs text-zinc-600 truncate">Admin</p></div></div></div>
+  </aside>
+  <div class="lg:ml-60 min-h-screen flex flex-col">
+    <header class="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
+      <button id="sidebar-toggle" class="lg:hidden text-zinc-400 hover:text-white"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg></button>
+      <div class="flex items-center gap-2 text-sm"><span class="text-zinc-500">Opsight</span><span class="text-zinc-700">/</span><span class="text-zinc-300">Integrations</span></div>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-2"><div class="pulse-live"></div><span class="font-mono text-xs text-zinc-500">Live</span></div>
+    </header>
+    <main class="flex-1 p-4 sm:p-6 space-y-6">
+      <div><h1 class="text-xl font-semibold text-white">Integrations</h1><p class="text-sm text-zinc-500 mt-0.5">Connect alerting, monitoring, and communication channels</p></div>
+
+      <!-- Summary -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Total Integrations</span><p class="text-2xl font-bold text-white mt-1">14</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Connected</span><p class="text-2xl font-bold text-success mt-1">11</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Errors</span><p class="text-2xl font-bold text-danger mt-1">1</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Events Today</span><p class="text-2xl font-bold text-accent mt-1">3,847</p></div>
+      </div>
+
+      <!-- Integration Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="integration-cards"></div>
+
+      <!-- Webhook Logs -->
+      <div class="bg-surface-50 border border-white/5 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-white/5 flex items-center justify-between">
+          <h3 class="text-sm font-medium text-zinc-200">Webhook Activity</h3>
+          <span class="font-mono text-[10px] text-zinc-600">Last 24 hours</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left border-b border-white/5">
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Endpoint</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Method</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Status</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Latency</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Last Triggered</th>
+            </tr></thead>
+            <tbody id="webhook-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
+  <script>
+    const sb=document.getElementById('sidebar'),tg=document.getElementById('sidebar-toggle'),ov=document.getElementById('sidebar-overlay');
+    tg.addEventListener('click',()=>{sb.classList.toggle('open');ov.classList.toggle('hidden')});ov.addEventListener('click',()=>{sb.classList.remove('open');ov.classList.add('hidden')});
+
+    const integrations=[
+      {name:'Slack',icon:'M4 15a3 3 0 0 0 3 3h0a3 3 0 0 0 3-3V9a3 3 0 0 0-3-3h0a3 3 0 0 0-3 3v2m6-2a3 3 0 0 0 3-3h0a3 3 0 0 0-3-3h0a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h0a3 3 0 0 0 3-3v-2m-6 2a3 3 0 0 0-3 3h0a3 3 0 0 0 3 3h0a3 3 0 0 0 3-3V9',status:'connected',category:'Communication',events:'1,204',desc:'Alert notifications and incident updates to #ops-alerts channel',configured:'2026-03-15'},
+      {name:'PagerDuty',icon:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',status:'connected',category:'On-Call',events:'342',desc:'Incident escalation and on-call routing for critical alerts',configured:'2026-02-08'},
+      {name:'Datadog',icon:'M3 12h4l3-8 4 16 3-8h4',status:'connected',category:'Monitoring',events:'856',desc:'Bi-directional metric sync and dashboard correlation',configured:'2026-01-20'},
+      {name:'Microsoft Teams',icon:'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 5h6v2h-6V7zm0 4h6v2h-6v-2zm0 4h4v2h-4v-2z',status:'connected',category:'Communication',events:'287',desc:'Incident notifications to IT Operations team channel',configured:'2026-03-01'},
+      {name:'Webhook (Custom)',icon:'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71',status:'connected',category:'Automation',events:'423',desc:'POST to https://hooks.internal/opsight/alerts',configured:'2026-04-12'},
+      {name:'Grafana',icon:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z',status:'connected',category:'Visualization',events:'-',desc:'Embedded dashboard links in alert notifications',configured:'2026-02-14'},
+      {name:'GitHub',icon:'M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z',status:'connected',category:'Source Control',events:'89',desc:'Link deploys to incident timelines and rollback triggers',configured:'2026-03-22'},
+      {name:'AWS CloudWatch',icon:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z',status:'connected',category:'Monitoring',events:'198',desc:'CloudWatch alarm ingestion and metric federation',configured:'2026-01-05'},
+      {name:'Jira',icon:'M12 2L2 12l10 10 10-10L12 2zm0 4l6 6-6 6-6-6 6-6z',status:'connected',category:'Ticketing',events:'156',desc:'Auto-create tickets for critical and warning incidents',configured:'2026-04-02'},
+      {name:'Prometheus',icon:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z',status:'connected',category:'Monitoring',events:'-',desc:'PromQL-based alert rule federation',configured:'2026-02-28'},
+      {name:'Sentry',icon:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z',status:'disconnected',category:'Error Tracking',events:'-',desc:'Error and exception tracking correlation',configured:'-'},
+      {name:'Zoom',icon:'M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14v-4z',status:'error',category:'Communication',events:'-',desc:'Auto-create war room for P1 incidents',configured:'2026-05-01'},
+      {name:'OpenTelemetry',icon:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z',status:'disconnected',category:'Observability',events:'-',desc:'Trace and span ingestion from OTEL collector',configured:'-'},
+    ];
+
+    const badgeMap={connected:'badge-connected',disconnected:'badge-disconnected',error:'badge-error'};
+    const statusLabel={connected:'Connected',disconnected:'Disconnected',error:'Error'};
+
+    document.getElementById('integration-cards').innerHTML=integrations.map(int=>{
+      const isOn=int.status==='connected';
+      return `<div class="bg-surface-50 border border-white/5 rounded-xl p-5">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-surface-300 flex items-center justify-center text-zinc-400"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/></svg></div>
+            <div><p class="text-sm font-medium text-zinc-200">${int.name}</p><p class="font-mono text-[10px] text-zinc-600">${int.category}</p></div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="badge ${badgeMap[int.status]}">${statusLabel[int.status]}</span>
+            <div class="toggle-track ${isOn?'on':''}" onclick="this.classList.toggle('on')"><div class="toggle-thumb"></div></div>
+          </div>
+        </div>
+        <p class="text-xs text-zinc-500 mb-3 leading-relaxed">${int.desc}</p>
+        <div class="flex items-center justify-between pt-3 border-t border-white/5">
+          <div class="flex items-center gap-3">
+            <div><p class="font-mono text-[10px] text-zinc-600">Events</p><p class="font-mono text-xs text-zinc-400">${int.events}</p></div>
+            <div><p class="font-mono text-[10px] text-zinc-600">Configured</p><p class="font-mono text-xs text-zinc-400">${int.configured}</p></div>
+          </div>
+          <button class="text-xs text-accent hover:underline">Configure</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Webhook logs
+    const webhooks=[
+      {endpoint:'/v1/alerts/ops-team',method:'POST',status:200,latency:'34ms',time:'2 min ago'},
+      {endpoint:'/v1/alerts/ops-team',method:'POST',status:200,latency:'28ms',time:'12 min ago'},
+      {endpoint:'/v1/incidents/create',method:'POST',status:201,latency:'142ms',time:'28 min ago'},
+      {endpoint:'/v1/alerts/ops-team',method:'POST',status:200,latency:'31ms',time:'45 min ago'},
+      {endpoint:'/v1/metrics/push',method:'POST',status:500,latency:'2.1s',time:'1 hr ago'},
+      {endpoint:'/v1/incidents/update',method:'PATCH',status:200,latency:'67ms',time:'2 hr ago'},
+    ];
+    document.getElementById('webhook-body').innerHTML=webhooks.map(w=>`<tr class="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+      <td class="px-4 py-3 font-mono text-xs text-zinc-400">${w.endpoint}</td>
+      <td class="px-4 py-3"><span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-surface-300 text-zinc-500">${w.method}</span></td>
+      <td class="px-4 py-3 font-mono text-xs ${w.status>=200&&w.status<300?'text-success':w.status>=500?'text-danger':'text-warn'}">${w.status}</td>
+      <td class="px-4 py-3 font-mono text-xs text-zinc-500">${w.latency}</td>
+      <td class="px-4 py-3 font-mono text-xs text-zinc-600">${w.time}</td>
+    </tr>`).join('');
+  </script>
+</body>
+</html>

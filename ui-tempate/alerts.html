@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Opsight - Alert Rules</title>
+  <script src="https://cdn.tailwindcss.com"></script><script>tailwindcss.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['"Space Grotesk"','system-ui','sans-serif'],mono:['"JetBrains Mono"','"SF Mono"','monospace']},colors:{surface:{DEFAULT:'#09090b',50:'#111114',100:'#18181b',200:'#1f1f23',300:'#27272a'},accent:{DEFAULT:'#0ea5e9',dim:'#0369a1'},warn:'#f59e0b',danger:'#ef4444',success:'#10b981'}}}}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box}body{margin:0;background:#09090b;color:#e4e4e7;font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
+    .nav-active{background:rgba(14,165,233,0.1);color:#0ea5e9;border-left:2px solid #0ea5e9}.nav-item{border-left:2px solid transparent;transition:background .15s,color .15s}.nav-item:hover{background:rgba(255,255,255,0.03);color:#e4e4e7}
+    @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.4}}.pulse-live{width:6px;height:6px;border-radius:50%;background:#10b981;animation:pulse-live 2s ease-in-out infinite}
+    @media(max-width:1023px){.sidebar{transform:translateX(-100%);transition:transform .25s}.sidebar.open{transform:translateX(0)}}
+    .toggle-track{width:36px;height:20px;border-radius:10px;background:#27272a;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+    .toggle-track.on{background:rgba(14,165,233,0.3)}
+    .toggle-thumb{width:16px;height:16px;border-radius:50%;background:#71717a;position:absolute;top:2px;left:2px;transition:transform .2s,background .2s}
+    .toggle-track.on .toggle-thumb{transform:translateX(16px);background:#0ea5e9}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;font-family:'JetBrains Mono',monospace}
+    .badge-critical{background:rgba(239,68,68,0.12);color:#f87171}.badge-warning{background:rgba(245,158,11,0.12);color:#fbbf24}.badge-info{background:rgba(14,165,233,0.12);color:#38bdf8}
+  </style>
+</head>
+<body class="dark">
+  <aside id="sidebar" class="sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col">
+    <div class="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0"><svg width="24" height="24" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#0ea5e9" fill-opacity="0.15"/><path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg><span class="text-white font-semibold tracking-tight">Opsight</span></div>
+    <nav class="flex-1 py-3 overflow-y-auto">
+      <div class="px-4 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Overview</span></div>
+      <a href="dashboard.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Dashboard</a>
+      <a href="metrics.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg>Metrics</a>
+      <a href="incidents.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12l3-3h9V2z"/><path d="M6 6h4M6 9h2"/></svg>Incidents</a>
+      <a href="services.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Services</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Intelligence</span></div>
+      <a href="insights.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>AI Insights</a>
+      <a href="topology.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12h12V2z"/><path d="M2 6h12"/></svg>Topology</a>
+      <a href="alerts.html" class="nav-item nav-active flex items-center gap-3 px-5 py-2 text-sm"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Alert Rules</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Settings</span></div>
+      <a href="integrations.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>Integrations</a>
+      <a href="team.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Team</a>
+    </nav>
+    <div class="px-4 py-3 border-t border-white/5 flex-shrink-0"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold">LH</div><div class="flex-1 min-w-0"><p class="text-sm text-zinc-300 truncate">Leo Hang</p><p class="font-mono text-xs text-zinc-600 truncate">Admin</p></div></div></div>
+  </aside>
+  <div class="lg:ml-60 min-h-screen flex flex-col">
+    <header class="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
+      <button id="sidebar-toggle" class="lg:hidden text-zinc-400 hover:text-white"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg></button>
+      <div class="flex items-center gap-2 text-sm"><span class="text-zinc-500">Opsight</span><span class="text-zinc-700">/</span><span class="text-zinc-300">Alert Rules</span></div>
+      <div class="flex-1"></div>
+      <button class="text-sm font-medium bg-accent text-white px-4 py-1.5 rounded-lg hover:bg-accent/90 transition-colors">New Rule</button>
+      <div class="flex items-center gap-2"><div class="pulse-live"></div><span class="font-mono text-xs text-zinc-500">Live</span></div>
+    </header>
+    <main class="flex-1 p-4 sm:p-6 space-y-6">
+      <div><h1 class="text-xl font-semibold text-white">Alert Rules</h1><p class="text-sm text-zinc-500 mt-0.5">Configure thresholds and notification channels</p></div>
+      <!-- Summary -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Total Rules</span><p class="text-2xl font-bold text-white mt-1">34</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Enabled</span><p class="text-2xl font-bold text-success mt-1">28</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">AI-Generated</span><p class="text-2xl font-bold text-accent mt-1">12</p></div>
+        <div class="bg-surface-50 border border-white/5 rounded-xl p-4"><span class="font-mono text-xs text-zinc-500">Triggered Today</span><p class="text-2xl font-bold text-warn mt-1">7</p></div>
+      </div>
+      <!-- Rules Table -->
+      <div class="bg-surface-50 border border-white/5 rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left border-b border-white/5">
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Rule</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Condition</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Threshold</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Service</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Severity</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Last Triggered</th>
+              <th class="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">Enabled</th>
+            </tr></thead>
+            <tbody id="rules-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
+  <script>
+    const sb=document.getElementById('sidebar'),tg=document.getElementById('sidebar-toggle'),ov=document.getElementById('sidebar-overlay');
+    tg.addEventListener('click',()=>{sb.classList.toggle('open');ov.classList.toggle('hidden')});ov.addEventListener('click',()=>{sb.classList.remove('open');ov.classList.add('hidden')});
+    const rules=[
+      {name:'High CPU Usage',condition:'cpu_usage >',threshold:'85%',service:'All',severity:'warning',last:'28 min ago',enabled:true,ai:false},
+      {name:'Memory Leak Detection',condition:'mem_growth_rate >',threshold:'10 MB/min',service:'All',severity:'critical',last:'2 min ago',enabled:true,ai:true},
+      {name:'Error Rate Spike',condition:'error_rate >',threshold:'1%',service:'All',severity:'critical',last:'12 min ago',enabled:true,ai:false},
+      {name:'Latency p99 Exceeded',condition:'latency_p99 >',threshold:'500ms',service:'All',severity:'warning',last:'1 hr ago',enabled:true,ai:false},
+      {name:'Disk Usage Critical',condition:'disk_usage >',threshold:'90%',service:'All',severity:'warning',last:'1 hr ago',enabled:true,ai:false},
+      {name:'Pod Restart Loop',condition:'restart_count >',threshold:'5 in 10m',service:'All',severity:'critical',last:'5 hr ago',enabled:true,ai:true},
+      {name:'Kafka Consumer Lag',condition:'consumer_lag >',threshold:'10,000',service:'event-pipeline',severity:'warning',last:'2 hr ago',enabled:true,ai:true},
+      {name:'SSL Cert Expiry',condition:'cert_days_remaining <',threshold:'7 days',service:'All',severity:'info',last:'4 hr ago',enabled:true,ai:false},
+      {name:'Redis Latency Spike',condition:'redis_p99 >',threshold:'200ms',service:'cache-layer',severity:'warning',last:'28 min ago',enabled:true,ai:true},
+      {name:'OOM Kill Detected',condition:'oom_kill_count >',threshold:'0',service:'All',severity:'critical',last:'2 min ago',enabled:true,ai:true},
+      {name:'DNS Resolution Failure',condition:'dns_error_rate >',threshold:'5%',service:'service-mesh',severity:'critical',last:'3 hr ago',enabled:true,ai:true},
+      {name:'Rate Limit Exceeded',condition:'http_429_count >',threshold:'100/min',service:'api-gateway',severity:'info',last:'8 hr ago',enabled:false,ai:false},
+      {name:'GC Pause Time',condition:'gc_pause >',threshold:'500ms',service:'All',severity:'warning',last:'6 hr ago',enabled:true,ai:true},
+      {name:'Connection Pool Exhaustion',condition:'active_connections >',threshold:'90% capacity',service:'All',severity:'critical',last:'-',enabled:true,ai:true},
+    ];
+    const sevBadge={critical:'badge-critical',warning:'badge-warning',info:'badge-info'};
+    document.getElementById('rules-body').innerHTML=rules.map((r,i)=>`<tr class="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+      <td class="px-4 py-3"><div class="flex items-center gap-2"><span class="text-zinc-300">${r.name}</span>${r.ai?'<span class="font-mono text-[9px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">AI</span>':''}</div></td>
+      <td class="px-4 py-3 font-mono text-xs text-zinc-400">${r.condition}</td>
+      <td class="px-4 py-3 font-mono text-xs text-warn">${r.threshold}</td>
+      <td class="px-4 py-3 font-mono text-xs text-zinc-500">${r.service}</td>
+      <td class="px-4 py-3"><span class="badge ${sevBadge[r.severity]}">${r.severity}</span></td>
+      <td class="px-4 py-3 font-mono text-xs text-zinc-600">${r.last}</td>
+      <td class="px-4 py-3"><div class="toggle-track ${r.enabled?'on':''}" onclick="this.classList.toggle('on')"><div class="toggle-thumb"></div></div></td>
+    </tr>`).join('');
+  </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: ./opsight-backend
+      dockerfile: Dockerfile
+    ports:
+      - "8800:8800"
+    environment:
+      - PORT=8800
+      - GIN_MODE=release
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8800/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./opsight-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3800:3800"
+    environment:
+      - API_URL=http://api:8800
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

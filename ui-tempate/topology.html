@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Opsight - Topology</title>
+  <script src="https://cdn.tailwindcss.com"></script><script>tailwindcss.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['"Space Grotesk"','system-ui','sans-serif'],mono:['"JetBrains Mono"','"SF Mono"','monospace']},colors:{surface:{DEFAULT:'#09090b',50:'#111114',100:'#18181b',200:'#1f1f23',300:'#27272a'},accent:{DEFAULT:'#0ea5e9',dim:'#0369a1'},warn:'#f59e0b',danger:'#ef4444',success:'#10b981'}}}}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box}body{margin:0;background:#09090b;color:#e4e4e7;font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
+    .nav-active{background:rgba(14,165,233,0.1);color:#0ea5e9;border-left:2px solid #0ea5e9}.nav-item{border-left:2px solid transparent;transition:background .15s,color .15s}.nav-item:hover{background:rgba(255,255,255,0.03);color:#e4e4e7}
+    @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.4}}.pulse-live{width:6px;height:6px;border-radius:50%;background:#10b981;animation:pulse-live 2s ease-in-out infinite}
+    @media(max-width:1023px){.sidebar{transform:translateX(-100%);transition:transform .25s}.sidebar.open{transform:translateX(0)}}
+    .topo-node{transition:box-shadow .2s,border-color .2s;cursor:pointer}.topo-node:hover{border-color:rgba(14,165,233,0.4);box-shadow:0 0 20px rgba(14,165,233,0.1)}
+    .topo-line{stroke-dasharray:4 4;animation:dash 20s linear infinite}
+    @keyframes dash{to{stroke-dashoffset:-100}}
+    @media(prefers-reduced-motion:reduce){.topo-line{animation:none;stroke-dasharray:none}}
+  </style>
+</head>
+<body class="dark">
+  <aside id="sidebar" class="sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col">
+    <div class="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0"><svg width="24" height="24" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#0ea5e9" fill-opacity="0.15"/><path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg><span class="text-white font-semibold tracking-tight">Opsight</span></div>
+    <nav class="flex-1 py-3 overflow-y-auto">
+      <div class="px-4 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Overview</span></div>
+      <a href="dashboard.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Dashboard</a>
+      <a href="metrics.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg>Metrics</a>
+      <a href="incidents.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12l3-3h9V2z"/><path d="M6 6h4M6 9h2"/></svg>Incidents</a>
+      <a href="services.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Services</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Intelligence</span></div>
+      <a href="insights.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>AI Insights</a>
+      <a href="topology.html" class="nav-item nav-active flex items-center gap-3 px-5 py-2 text-sm"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H2v12h12V2z"/><path d="M2 6h12"/></svg>Topology</a>
+      <a href="alerts.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Alert Rules</a>
+      <div class="px-4 mt-5 mb-2"><span class="font-mono text-[10px] uppercase tracking-widest text-zinc-600">Settings</span></div>
+      <a href="integrations.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>Integrations</a>
+      <a href="team.html" class="nav-item flex items-center gap-3 px-5 py-2 text-sm text-zinc-500"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Team</a>
+    </nav>
+    <div class="px-4 py-3 border-t border-white/5 flex-shrink-0"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold">LH</div><div class="flex-1 min-w-0"><p class="text-sm text-zinc-300 truncate">Leo Hang</p><p class="font-mono text-xs text-zinc-600 truncate">Admin</p></div></div></div>
+  </aside>
+  <div class="lg:ml-60 min-h-screen flex flex-col">
+    <header class="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
+      <button id="sidebar-toggle" class="lg:hidden text-zinc-400 hover:text-white"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg></button>
+      <div class="flex items-center gap-2 text-sm"><span class="text-zinc-500">Opsight</span><span class="text-zinc-700">/</span><span class="text-zinc-300">Topology</span></div>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-success"></div><span class="font-mono text-[10px] text-zinc-500">Healthy</span></div>
+        <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-warn"></div><span class="font-mono text-[10px] text-zinc-500">Degraded</span></div>
+        <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-danger"></div><span class="font-mono text-[10px] text-zinc-500">Down</span></div>
+      </div>
+      <div class="flex items-center gap-2"><div class="pulse-live"></div><span class="font-mono text-xs text-zinc-500">Live</span></div>
+    </header>
+    <main class="flex-1 p-4 sm:p-6 space-y-6">
+      <div><h1 class="text-xl font-semibold text-white">Service Topology</h1><p class="text-sm text-zinc-500 mt-0.5">Dependency graph and traffic flow</p></div>
+
+      <!-- SVG Topology -->
+      <div class="bg-surface-50 border border-white/5 rounded-xl p-6 relative overflow-auto" style="min-height: 560px;">
+        <svg width="100%" height="520" viewBox="0 0 900 520" class="w-full h-auto">
+          <!-- Connection lines -->
+          <line x1="450" y1="60" x2="200" y2="180" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <line x1="450" y1="60" x2="450" y2="180" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <line x1="450" y1="60" x2="700" y2="180" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <line x1="200" y1="220" x2="120" y2="340" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <line x1="200" y1="220" x2="280" y2="340" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <line x1="450" y1="220" x2="370" y2="340" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <line x1="450" y1="220" x2="530" y2="340" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <line x1="700" y1="220" x2="620" y2="340" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <line x1="700" y1="220" x2="780" y2="340" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <!-- Auth to Cache (red for down) -->
+          <line x1="200" y1="220" x2="450" y2="180" class="topo-line" stroke="rgba(239,68,68,0.25)" stroke-width="1.5"/>
+          <!-- Payment to Cache (yellow for degraded) -->
+          <line x1="700" y1="220" x2="450" y2="180" class="topo-line" stroke="rgba(245,158,11,0.2)" stroke-width="1.5"/>
+          <!-- User to Cache -->
+          <line x1="450" y1="220" x2="450" y2="180" class="topo-line" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+
+          <!-- Tier 1: Gateway -->
+          <g class="topo-node-group">
+            <rect x="380" y="24" width="140" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="404" cy="46" r="4" fill="#10b981"/>
+            <text x="416" y="50" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">api-gateway</text>
+            <text x="416" y="64" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">4,200 rps</text>
+          </g>
+
+          <!-- Tier 2 -->
+          <g class="topo-node-group">
+            <rect x="130" y="164" width="140" height="56" rx="8" fill="#111114" stroke="rgba(239,68,68,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="154" cy="186" r="4" fill="#ef4444"/>
+            <text x="166" y="190" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">auth-service</text>
+            <text x="166" y="204" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">DOWN</text>
+          </g>
+          <g class="topo-node-group">
+            <rect x="380" y="164" width="140" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="404" cy="186" r="4" fill="#10b981"/>
+            <text x="416" y="190" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">cache-layer</text>
+            <text x="416" y="204" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">12k rps</text>
+          </g>
+          <g class="topo-node-group">
+            <rect x="630" y="164" width="140" height="56" rx="8" fill="#111114" stroke="rgba(245,158,11,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="654" cy="186" r="4" fill="#f59e0b"/>
+            <text x="666" y="190" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">payment-gateway</text>
+            <text x="666" y="204" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">DEGRADED</text>
+          </g>
+
+          <!-- Tier 3 -->
+          <g class="topo-node-group">
+            <rect x="50" y="320" width="130" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="74" cy="342" r="4" fill="#10b981"/>
+            <text x="86" y="346" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">user-svc</text>
+            <text x="86" y="360" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">3,400 rps</text>
+          </g>
+          <g class="topo-node-group">
+            <rect x="215" y="320" width="130" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="239" cy="342" r="4" fill="#10b981"/>
+            <text x="251" y="346" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">notify-svc</text>
+            <text x="251" y="360" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">560 rps</text>
+          </g>
+          <g class="topo-node-group">
+            <rect x="305" y="320" width="130" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="329" cy="342" r="4" fill="#10b981"/>
+            <text x="341" y="346" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">order-svc</text>
+            <text x="341" y="360" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">2,100 rps</text>
+          </g>
+          <g class="topo-node-group">
+            <rect x="465" y="320" width="130" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="489" cy="342" r="4" fill="#10b981"/>
+            <text x="501" y="346" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">search-svc</text>
+            <text x="501" y="360" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">1,800 rps</text>
+          </g>
+          <g class="topo-node-group">
+            <rect x="555" y="320" width="130" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="579" cy="342" r="4" fill="#10b981"/>
+            <text x="591" y="346" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">analytics</text>
+            <text x="591" y="360" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">2,300 rps</text>
+          </g>
+          <g class="topo-node-group">
+            <rect x="715" y="320" width="130" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.4)" stroke-width="1" class="topo-node"/>
+            <circle cx="739" cy="342" r="4" fill="#10b981"/>
+            <text x="751" y="346" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">events</text>
+            <text x="751" y="360" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">8,700 rps</text>
+          </g>
+
+          <!-- Tier 4: Infra -->
+          <g class="topo-node-group">
+            <rect x="250" y="440" width="160" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.3)" stroke-width="1" class="topo-node"/>
+            <circle cx="274" cy="462" r="4" fill="#10b981"/>
+            <text x="286" y="466" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">cdn-edge</text>
+            <text x="286" y="480" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">45,000 rps · global</text>
+          </g>
+          <g class="topo-node-group">
+            <rect x="490" y="440" width="160" height="56" rx="8" fill="#111114" stroke="rgba(16,185,129,0.3)" stroke-width="1" class="topo-node"/>
+            <circle cx="514" cy="462" r="4" fill="#10b981"/>
+            <text x="526" y="466" fill="#e4e4e7" font-family="'Space Grotesk'" font-size="13" font-weight="500">service-mesh</text>
+            <text x="526" y="480" fill="#52525b" font-family="'JetBrains Mono'" font-size="9">p99 2ms · 12 nodes</text>
+          </g>
+          <!-- Lines to infra -->
+          <line x1="320" y1="376" x2="330" y2="440" class="topo-line" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+          <line x1="450" y1="60" x2="570" y2="440" class="topo-line" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+        </svg>
+      </div>
+
+      <!-- Node Detail (shown on click) -->
+      <div class="bg-surface-50 border border-white/5 rounded-xl p-5" id="node-detail" style="display:none">
+        <h3 class="text-sm font-medium text-zinc-200 mb-3" id="node-name"></h3>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="node-stats"></div>
+      </div>
+    </main>
+  </div>
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
+  <script>
+    const sb=document.getElementById('sidebar'),tg=document.getElementById('sidebar-toggle'),ov=document.getElementById('sidebar-overlay');
+    tg.addEventListener('click',()=>{sb.classList.toggle('open');ov.classList.toggle('hidden')});ov.addEventListener('click',()=>{sb.classList.remove('open');ov.classList.add('hidden')});
+
+    const nodeData={
+      'api-gateway':{status:'healthy',rps:'4,200',p99:'45ms',errRate:'0.02%',uptime:'99.99%',deps:['auth-service','user-service','payment-gateway','order-service','cache-layer']},
+      'auth-service':{status:'down',rps:'1,100',p99:'12s',errRate:'14.2%',uptime:'99.81%',deps:['cache-layer','user-service']},
+      'payment-gateway':{status:'degraded',rps:'890',p99:'2.1s',errRate:'3.8%',uptime:'99.92%',deps:['cache-layer','event-pipeline']},
+      'cache-layer':{status:'degraded',rps:'12,000',p99:'210ms',errRate:'0.8%',uptime:'99.88%',deps:[]},
+      'user-svc':{status:'healthy',rps:'3,400',p99:'32ms',errRate:'0.01%',uptime:'99.98%',deps:['cache-layer']},
+      'notify-svc':{status:'healthy',rps:'560',p99:'28ms',errRate:'0.03%',uptime:'99.95%',deps:['event-pipeline']},
+      'order-svc':{status:'healthy',rps:'2,100',p99:'67ms',errRate:'0.05%',uptime:'99.97%',deps:['payment-gateway','event-pipeline','user-svc']},
+      'search-svc':{status:'healthy',rps:'1,800',p99:'89ms',errRate:'0.08%',uptime:'99.94%',deps:['cache-layer']},
+      'analytics':{status:'healthy',rps:'2,300',p99:'120ms',errRate:'0.12%',uptime:'99.91%',deps:['event-pipeline']},
+      'events':{status:'healthy',rps:'8,700',p99:'15ms',errRate:'0.01%',uptime:'99.99%',deps:[]},
+      'cdn-edge':{status:'healthy',rps:'45,000',p99:'8ms',errRate:'0.00%',uptime:'100.00%',deps:[]},
+      'service-mesh':{status:'healthy',rps:'-',p99:'2ms',errRate:'0.00%',uptime:'99.99%',deps:[]},
+    };
+
+    document.querySelectorAll('.topo-node-group').forEach(g=>{
+      g.addEventListener('click',()=>{
+        const text=g.querySelector('text')?.textContent?.split('\n')[0]||'';
+        const name=Object.keys(nodeData).find(k=>text.includes(k.split('-')[0]))||text;
+        const data=nodeData[name];
+        if(!data)return;
+        const el=document.getElementById('node-detail');
+        document.getElementById('node-name').textContent=name;
+        const color={healthy:'text-success',degraded:'text-warn',down:'text-danger'}[data.status];
+        document.getElementById('node-stats').innerHTML=`
+          <div><p class="font-mono text-[10px] text-zinc-600">Status</p><p class="text-sm ${color} mt-0.5">${data.status}</p></div>
+          <div><p class="font-mono text-[10px] text-zinc-600">RPS</p><p class="font-mono text-sm text-zinc-300 mt-0.5">${data.rps}</p></div>
+          <div><p class="font-mono text-[10px] text-zinc-600">p99 Latency</p><p class="font-mono text-sm text-zinc-300 mt-0.5">${data.p99}</p></div>
+          <div><p class="font-mono text-[10px] text-zinc-600">Error Rate</p><p class="font-mono text-sm text-zinc-300 mt-0.5">${data.errRate}</p></div>
+          <div><p class="font-mono text-[10px] text-zinc-600">Uptime</p><p class="font-mono text-sm text-zinc-300 mt-0.5">${data.uptime}</p></div>
+          <div><p class="font-mono text-[10px] text-zinc-600">Dependencies</p><p class="font-mono text-xs text-zinc-400 mt-0.5">${data.deps.length?data.deps.join(', '):'None'}</p></div>
+        `;
+        el.style.display='';
+      });
+    });
+  </script>
+</body>
+</html>
