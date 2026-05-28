@@ -573,12 +573,49 @@ func broadcastEvent(eventType string, data interface{}) {
 
 // Simulate periodic events
 func simulateEvents() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
+		mu.Lock()
+		updateServiceMetrics()
+		mu.Unlock()
+		
 		events := []string{"alert_firing", "incident_update", "service_status"}
 		event := events[rand.Intn(len(events))]
 		broadcastEvent(event, gin.H{"message": fmt.Sprintf("Simulated %s event", event)})
+	}
+}
+
+func requestLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		latency := time.Since(start)
+		log.Printf("[%s] %s %s %d %v", c.Request.Method, c.Request.URL.Path, c.ClientIP(), c.Writer.Status(), latency)
+	}
+}
+
+func updateServiceMetrics() {
+	for i := range services {
+		if services[i].Status == "healthy" {
+			rps := rand.Intn(500) + 1000
+			services[i].RPS = fmt.Sprintf("%d", rps)
+			p50 := rand.Intn(20) + 5
+			services[i].P50 = fmt.Sprintf("%dms", p50)
+			p99 := p50*3 + rand.Intn(50)
+			services[i].P99 = fmt.Sprintf("%dms", p99)
+		}
+	}
+	
+	for key := range topology {
+		node := topology[key]
+		if node.Status == "healthy" {
+			rps := rand.Intn(500) + 1000
+			node.RPS = fmt.Sprintf("%d", rps)
+			p99 := rand.Intn(100) + 10
+			node.P99 = fmt.Sprintf("%dms", p99)
+			topology[key] = node
+		}
 	}
 }
 
@@ -595,7 +632,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(gin.Logger())
+	r.Use(requestLogger())
 
 	// CORS
 	r.Use(cors.New(cors.Config{

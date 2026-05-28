@@ -1,28 +1,52 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { fetchAPI } from '../lib/api';
-
-function Badge({ children, variant }: { children: React.ReactNode; variant: string }) {
-  const s: Record<string, string> = { critical: 'bg-[rgba(239,68,68,0.12)] text-[#f87171]', warning: 'bg-[rgba(245,158,11,0.12)] text-[#fbbf24]', resolved: 'bg-[rgba(16,185,129,0.12)] text-[#34d399]', info: 'bg-[rgba(14,165,233,0.12)] text-[#38bdf8]', muted: 'bg-[rgba(113,113,122,0.12)] text-[#a1a1aa]' };
-  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium font-mono ${s[variant] || s.muted}`}>{children}</span>;
-}
+import { fetchAPI, patchAPI } from '../lib/api';
+import { Badge, LoadingState, EmptyState } from '../components/UI';
+import { useNotification } from '../components/Notification';
 
 export default function Incidents() {
   const [incidents, setIncidents] = useState<any[]>([]);
   const [filter, setFilter] = useState({ status: 'all', search: '' });
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { addNotification } = useNotification();
 
   useEffect(() => {
+    setLoading(true);
     const params = new URLSearchParams();
     if (filter.status !== 'all') params.set('status', filter.status);
     if (filter.search) params.set('search', filter.search);
-    fetchAPI(`/incidents?${params}`).then(d => setIncidents(d.incidents || [])).catch(console.error);
+    fetchAPI(`/incidents?${params}`)
+      .then(d => setIncidents(d.incidents || []))
+      .catch(e => {
+        addNotification('error', 'Failed to load incidents', e.message);
+        setIncidents([]);
+      })
+      .finally(() => setLoading(false));
   }, [filter]);
+
+  const handleResolve = async (id: string) => {
+    try {
+      await patchAPI(`/incidents/${id}/resolve`);
+      setIncidents(prev => prev.map(inc => inc.id === id ? { ...inc, status: 'resolved' } : inc));
+      addNotification('success', 'Incident Resolved', `Incident ${id} has been marked as resolved.`);
+    } catch (e: any) {
+      addNotification('error', 'Failed to resolve', e.message);
+    }
+  };
 
   const criticalCount = incidents.filter(i => i.status === 'critical').length;
   const warningCount = incidents.filter(i => i.status === 'warning').length;
   const resolvedCount = incidents.filter(i => i.status === 'resolved').length;
+
+  if (loading) {
+    return <LoadingState text="Loading incidents..." />;
+  }
+
+  if (incidents.length === 0) {
+    return <EmptyState title="No incidents found" description="Try adjusting your search or filter criteria." />;
+  }
 
   return (
     <>
@@ -67,7 +91,12 @@ export default function Incidents() {
                 <div className="flex items-center gap-4 mt-3">
                   <span className="font-mono text-[10px] text-zinc-600">Duration: {inc.duration}</span>
                   {inc.status !== 'resolved' && (
-                    <button className="text-xs text-accent hover:text-accent/80 transition-colors">Mark Resolved</button>
+                    <button
+                      onClick={() => handleResolve(inc.id)}
+                      className="text-xs text-accent hover:text-accent/80 transition-colors"
+                    >
+                      Mark Resolved
+                    </button>
                   )}
                 </div>
               </div>

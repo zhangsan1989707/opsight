@@ -4,6 +4,8 @@ import './globals.css';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { NotificationProvider } from './components/Notification';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const navItems = [
   { group: 'Overview', items: [
@@ -49,6 +51,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN" className="dark">
       <head><title>Opsight - {pageName}</title><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
       <body className="dark">
+        <NotificationProvider>
+          <ErrorBoundary>
         {/* Sidebar */}
         <aside className={`sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col transition-transform duration-250 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
           <div className="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0">
@@ -114,6 +118,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </header>
           <main className="flex-1 p-4 sm:p-6 space-y-6">{children}</main>
         </div>
+          </ErrorBoundary>
+        </NotificationProvider>
       </body>
     </html>
   );

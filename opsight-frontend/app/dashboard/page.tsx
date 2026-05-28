@@ -2,29 +2,31 @@
 
 import { useEffect, useState } from 'react';
 import { fetchAPI } from '../lib/api';
-
-function Badge({ children, variant }: { children: React.ReactNode; variant: string }) {
-  const styles: Record<string, string> = {
-    critical: 'bg-[rgba(239,68,68,0.12)] text-[#f87171]',
-    warning: 'bg-[rgba(245,158,11,0.12)] text-[#fbbf24]',
-    resolved: 'bg-[rgba(16,185,129,0.12)] text-[#34d399]',
-    info: 'bg-[rgba(14,165,233,0.12)] text-[#38bdf8]',
-    muted: 'bg-[rgba(113,113,122,0.12)] text-[#a1a1aa]',
-  };
-  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium font-mono ${styles[variant] || styles.muted}`}>{children}</span>;
-}
+import { Badge, LoadingState, EmptyState, Card } from '../components/UI';
+import { useNotification } from '../components/Notification';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
   const [incidents, setIncidents] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [topErrors, setTopErrors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { addNotification } = useNotification();
 
   useEffect(() => {
-    fetchAPI('/dashboard/summary').then(setSummary).catch(console.error);
-    fetchAPI('/incidents?limit=8').then(d => setIncidents(d.incidents || [])).catch(console.error);
-    fetchAPI('/services').then(d => setServices(d.services || [])).catch(console.error);
-    fetchAPI('/dashboard/top-errors').then(d => setTopErrors(d.errors || [])).catch(console.error);
+    setLoading(true);
+    Promise.all([
+      fetchAPI('/dashboard/summary').catch(e => { addNotification('error', 'Failed to load summary', e.message); return null; }),
+      fetchAPI('/incidents?limit=8').catch(e => { addNotification('error', 'Failed to load incidents', e.message); return { incidents: [] }; }),
+      fetchAPI('/services').catch(e => { addNotification('error', 'Failed to load services', e.message); return { services: [] }; }),
+      fetchAPI('/dashboard/top-errors').catch(e => { addNotification('error', 'Failed to load errors', e.message); return { errors: [] }; }),
+    ]).then(([sum, inc, svc, err]) => {
+      if (sum) setSummary(sum);
+      setIncidents(inc.incidents || []);
+      setServices(svc.services || []);
+      setTopErrors(err.errors || []);
+      setLoading(false);
+    });
   }, []);
 
   const aiInsights = [
@@ -37,6 +39,10 @@ export default function Dashboard() {
   const healthyCount = services.filter(s => s.status === 'healthy').length;
   const degradedCount = services.filter(s => s.status === 'degraded').length;
   const downCount = services.filter(s => s.status === 'down').length;
+
+  if (loading) {
+    return <LoadingState text="Loading dashboard..." />;
+  }
 
   return (
     <>
