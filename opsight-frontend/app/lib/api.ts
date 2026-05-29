@@ -1,25 +1,53 @@
-const API_BASE = typeof window !== 'undefined'
-  ? `${window.location.protocol}//${window.location.hostname}:8800/api/v1`
-  : 'http://localhost:8800/api/v1';
+const API_BASE = '/api/v1';
 
-export async function fetchAPI<T = any>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: 'no-store' });
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('opsight_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  return headers;
+}
+
+async function handleResponse(res: Response) {
+  if (res.status === 401) {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('opsight_token');
+      localStorage.removeItem('opsight_user');
+      window.location.href = '/login';
+    }
+    throw new Error('Unauthorized');
+  }
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
+}
+
+export async function fetchAPI<T = any>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    cache: 'no-store',
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
 }
 
 export async function postAPI<T = any>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
+  return handleResponse(res);
 }
 
 export async function patchAPI<T = any>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { method: 'PATCH' });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
 }

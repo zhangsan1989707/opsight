@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { NotificationProvider } from './components/Notification';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 const navItems = [
   { group: 'Overview', items: [
@@ -42,82 +43,145 @@ function NavIcon({ type }: { type: string }) {
   }
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+function UserInitials(name: string): string {
+  if (!name) return '??';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function UserSection() {
+  const { user, logout, isAuthenticated } = useAuth();
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const pageName = navItems.flatMap(g => g.items).find(i => pathname.startsWith(i.href))?.label || 'Dashboard';
+
+  if (!isAuthenticated) {
+    return (
+      <div className="px-4 py-3 border-t border-white/5 flex-shrink-0">
+        <Link
+          href="/login"
+          className="flex items-center justify-center gap-2 w-full py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-lg transition-colors"
+        >
+          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+            <path d="M9 1H3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7"/>
+            <path d="M9 1h6v6"/>
+            <path d="M5 11l6-6"/>
+          </svg>
+          Sign In
+        </Link>
+      </div>
+    );
+  }
 
   return (
+    <div className="px-4 py-3 border-t border-white/5 flex-shrink-0">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold flex-shrink-0">
+          {UserInitials(user?.name || 'User')}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-zinc-300 truncate">{user?.name || 'User'}</p>
+          <p className="font-mono text-xs text-zinc-600 truncate">{user?.role || 'User'}</p>
+        </div>
+        <button
+          onClick={logout}
+          className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-white/[0.05] transition-colors"
+          title="退出登录"
+        >
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+            <path d="M6 2H3a2 2 0 00-2 2v8a2 2 0 002 2h3"/>
+            <path d="M14 8H6"/>
+            <path d="M11 5l3 3-3 3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isLoginPage = pathname === '/login';
+  const pageName = navItems.flatMap(g => g.items).find(i => pathname.startsWith(i.href))?.label || 'Dashboard';
+
+  // Login page: render without sidebar and header
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
+
+  return (
+    <>
+      {/* Sidebar */}
+      <aside className={`sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col transition-transform duration-250 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+        <div className="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0">
+          <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+            <rect width="28" height="28" rx="6" fill="#0ea5e9" fillOpacity="0.15"/>
+            <path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
+          </svg>
+          <span className="text-white font-semibold tracking-tight">Opsight</span>
+        </div>
+        <nav className="flex-1 py-3 overflow-y-auto">
+          {navItems.map(group => (
+            <div key={group.group}>
+              <div className="px-4 mb-2 mt-4 first:mt-0">
+                <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-600">{group.group}</span>
+              </div>
+              {group.items.map(item => {
+                const active = pathname.startsWith(item.href);
+                return (
+                  <Link key={item.href} href={item.href}
+                    className={`flex items-center gap-3 px-5 py-2 text-sm border-l-2 transition-colors ${active ? 'bg-[rgba(14,165,233,0.1)] text-[#0ea5e9] border-[#0ea5e9]' : 'border-transparent text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300'}`}
+                    onClick={() => setSidebarOpen(false)}>
+                    <NavIcon type={item.icon} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+        <UserSection />
+      </aside>
+
+      {/* Overlay */}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+
+      {/* Main */}
+      <div className="lg:ml-60 min-h-screen flex flex-col">
+        <header className="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
+          <button className="lg:hidden text-zinc-400 hover:text-white" onClick={() => setSidebarOpen(true)}>
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
+            </svg>
+          </button>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-zinc-500">Opsight</span>
+            <span className="text-zinc-700">/</span>
+            <span className="text-zinc-300">{pageName}</span>
+          </div>
+          <div className="flex-1" />
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-success" style={{ animation: 'pulse-live 2s ease-in-out infinite' }} />
+            <span className="font-mono text-xs text-zinc-500">Live</span>
+          </div>
+        </header>
+        <main className="flex-1 p-4 sm:p-6 space-y-6">{children}</main>
+      </div>
+    </>
+  );
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
     <html lang="zh-CN" className="dark">
-      <head><title>Opsight - {pageName}</title><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+      <head><title>Opsight</title><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
       <body className="dark">
         <NotificationProvider>
           <ErrorBoundary>
-        {/* Sidebar */}
-        <aside className={`sidebar fixed top-0 left-0 bottom-0 w-60 bg-surface-50 border-r border-white/5 z-50 flex flex-col transition-transform duration-250 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
-          <div className="flex items-center gap-2.5 px-5 h-14 border-b border-white/5 flex-shrink-0">
-            <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-              <rect width="28" height="28" rx="6" fill="#0ea5e9" fillOpacity="0.15"/>
-              <path d="M8 14L12 10L16 14L20 10" stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M8 19L12 15L16 19L20 15" stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
-            </svg>
-            <span className="text-white font-semibold tracking-tight">Opsight</span>
-          </div>
-          <nav className="flex-1 py-3 overflow-y-auto">
-            {navItems.map(group => (
-              <div key={group.group}>
-                <div className="px-4 mb-2 mt-4 first:mt-0">
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-600">{group.group}</span>
-                </div>
-                {group.items.map(item => {
-                  const active = pathname.startsWith(item.href);
-                  return (
-                    <Link key={item.href} href={item.href}
-                      className={`flex items-center gap-3 px-5 py-2 text-sm border-l-2 transition-colors ${active ? 'bg-[rgba(14,165,233,0.1)] text-[#0ea5e9] border-[#0ea5e9]' : 'border-transparent text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300'}`}
-                      onClick={() => setSidebarOpen(false)}>
-                      <NavIcon type={item.icon} />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-          <div className="px-4 py-3 border-t border-white/5 flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-xs font-semibold">LH</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-zinc-300 truncate">Leo Hang</p>
-                <p className="font-mono text-xs text-zinc-600 truncate">Admin</p>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        {/* Overlay */}
-        {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-
-        {/* Main */}
-        <div className="lg:ml-60 min-h-screen flex flex-col">
-          <header className="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
-            <button className="lg:hidden text-zinc-400 hover:text-white" onClick={() => setSidebarOpen(true)}>
-              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
-              </svg>
-            </button>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-zinc-500">Opsight</span>
-              <span className="text-zinc-700">/</span>
-              <span className="text-zinc-300">{pageName}</span>
-            </div>
-            <div className="flex-1" />
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-success" style={{ animation: 'pulse-live 2s ease-in-out infinite' }} />
-              <span className="font-mono text-xs text-zinc-500">Live</span>
-            </div>
-          </header>
-          <main className="flex-1 p-4 sm:p-6 space-y-6">{children}</main>
-        </div>
+            <AuthProvider>
+              <AppShell>{children}</AppShell>
+            </AuthProvider>
           </ErrorBoundary>
         </NotificationProvider>
       </body>

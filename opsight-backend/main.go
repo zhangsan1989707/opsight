@@ -2,46 +2,54 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"opsight-backend/internal/audit"
+	"opsight-backend/internal/auth"
+	"opsight-backend/internal/database"
+	"opsight-backend/internal/model"
+	"opsight-backend/internal/notify"
+	"opsight-backend/pkg/logger"
+	"opsight-backend/pkg/response"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
-// ==================== Models ====================
+// ==================== DTOs (API response structs) ====================
 
-type Service struct {
-	Name     string   `json:"name"`
-	Status   string   `json:"status"`
-	RPS      string   `json:"rps"`
-	P50      string   `json:"p50"`
-	P99      string   `json:"p99"`
-	ErrRate  string   `json:"err_rate"`
-	Uptime   string   `json:"uptime"`
-	Team     string   `json:"team"`
-	Deps     []string `json:"deps"`
+type ServiceDTO struct {
+	Name   string   `json:"name"`
+	Status string   `json:"status"`
+	RPS    string   `json:"rps"`
+	P50    string   `json:"p50"`
+	P99    string   `json:"p99"`
+	ErrRate string  `json:"err_rate"`
+	Uptime string   `json:"uptime"`
+	Team   string   `json:"team"`
+	Deps   []string `json:"deps"`
 }
 
-type Incident struct {
-	ID       string `json:"id"`
-	Summary  string `json:"summary"`
-	Service  string `json:"service"`
-	Status   string `json:"status"`
+type IncidentDTO struct {
+	ID      string `json:"id"`
+	Summary string `json:"summary"`
+	Service string `json:"service"`
+	Status  string `json:"status"`
 	Duration string `json:"duration"`
-	Time     string `json:"time"`
-	Detail   string `json:"detail,omitempty"`
+	Time    string `json:"time"`
+	Detail  string `json:"detail,omitempty"`
 }
 
-type AlertRule struct {
+type AlertRuleDTO struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Condition string `json:"condition"`
@@ -53,7 +61,7 @@ type AlertRule struct {
 	IsAI      bool   `json:"is_ai"`
 }
 
-type Insight struct {
+type InsightDTO struct {
 	Type       string `json:"type"`
 	Title      string `json:"title"`
 	Body       string `json:"body"`
@@ -64,7 +72,7 @@ type Insight struct {
 	Related    string `json:"related,omitempty"`
 }
 
-type TopologyNode struct {
+type TopologyNodeDTO struct {
 	ID     string   `json:"id"`
 	Status string   `json:"status"`
 	RPS    string   `json:"rps"`
@@ -72,7 +80,7 @@ type TopologyNode struct {
 	Deps   []string `json:"deps"`
 }
 
-type Integration struct {
+type IntegrationDTO struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
 	Type       string `json:"type"`
@@ -82,7 +90,7 @@ type Integration struct {
 	EventCount int    `json:"event_count"`
 }
 
-type TeamMember struct {
+type TeamMemberDTO struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Email string `json:"email"`
@@ -90,173 +98,379 @@ type TeamMember struct {
 	Team  string `json:"team"`
 }
 
-type TopError struct {
+type TopErrorDTO struct {
 	Error   string `json:"error"`
 	Count   int    `json:"count"`
 	Trend   string `json:"trend"`
 	Service string `json:"service"`
 }
 
-// ==================== Data Store ====================
+// ==================== Agent API Key Middleware ====================
+
+func agentAPIKeyAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key := os.Getenv("AGENT_API_KEY")
+		if key == "" {
+			c.Next()
+			return
+		}
+		auth := c.GetHeader("Authorization")
+		parts := strings.SplitN(auth, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] != key {
+			response.Error(c, http.StatusUnauthorized, response.ErrUnauthorized, "invalid agent api key")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// ==================== Agent Handlers ====================
+
+type agentReportRequest struct {
+	AgentVersion string `json:"agent_version"`
+	Hostname     string `json:"hostname"`
+	IP           string `json:"ip"`
+	OS           string `json:"os"`
+	CPU          struct {
+		Cores   int     `json:"cores"`
+		Percent float64 `json:"percent"`
+	} `json:"cpu"`
+	Memory struct {
+		TotalMB float64 `json:"total_mb"`
+		UsedMB  float64 `json:"used_mb"`
+		Percent float64 `json:"percent"`
+	} `json:"memory"`
+	Disk struct {
+		TotalMB float64 `json:"total_mb"`
+		UsedMB  float64 `json:"used_mb"`
+		Percent float64 `json:"percent"`
+	} `json:"disk"`
+	Network struct {
+		RecvBytesPerSec float64 `json:"recv_bytes_per_sec"`
+		SentBytesPerSec float64 `json:"sent_bytes_per_sec"`
+	} `json:"network"`
+	Load struct {
+		Load1  float64 `json:"load1"`
+		Load5  float64 `json:"load5"`
+		Load15 float64 `json:"load15"`
+	} `json:"load"`
+}
+
+func agentReport(c *gin.Context) {
+	var req agentReportRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid request body")
+		return
+	}
+	if req.Hostname == "" {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "hostname is required")
+		return
+	}
+
+	now := time.Now()
+
+	// Upsert AgentInstance
+	var agent model.AgentInstance
+	result := database.DB.Where("hostname = ?", req.Hostname).First(&agent)
+	if result.Error != nil {
+		agent = model.AgentInstance{
+			AgentVersion: req.AgentVersion,
+			Hostname:     req.Hostname,
+			IP:           req.IP,
+			OS:           req.OS,
+			CPUCores:     req.CPU.Cores,
+			MemTotalMB:   req.Memory.TotalMB,
+			Status:       "online",
+			FirstSeenAt:  now,
+			LastSeenAt:   now,
+		}
+		database.DB.Create(&agent)
+	} else {
+		agent.AgentVersion = req.AgentVersion
+		agent.IP = req.IP
+		agent.OS = req.OS
+		agent.CPUCores = req.CPU.Cores
+		agent.MemTotalMB = req.Memory.TotalMB
+		agent.Status = "online"
+		agent.LastSeenAt = now
+		database.DB.Save(&agent)
+	}
+
+	// Insert MetricSnapshot
+	snapshot := model.MetricSnapshot{
+		AgentID:      agent.ID,
+		Hostname:     req.Hostname,
+		CPUPercent:   req.CPU.Percent,
+		MemTotalMB:   req.Memory.TotalMB,
+		MemUsedMB:    req.Memory.UsedMB,
+		MemPercent:   req.Memory.Percent,
+		DiskTotalMB:  req.Disk.TotalMB,
+		DiskUsedMB:   req.Disk.UsedMB,
+		DiskPercent:  req.Disk.Percent,
+		NetRecvBytes: req.Network.RecvBytesPerSec,
+		NetSentBytes: req.Network.SentBytesPerSec,
+		Load1:        req.Load.Load1,
+		Load5:        req.Load.Load5,
+		Load15:       req.Load.Load15,
+		ReportedAt:   now,
+	}
+	database.DB.Create(&snapshot)
+
+	logger.Info().
+		Str("hostname", req.Hostname).
+		Float64("cpu", req.CPU.Percent).
+		Float64("mem", req.Memory.Percent).
+		Msg("Agent report received")
+
+	response.Success(c, gin.H{"message": "success"})
+}
+
+func listAgents(c *gin.Context) {
+	var agents []model.AgentInstance
+	database.DB.Find(&agents)
+
+	type agentSummary struct {
+		ID         uint      `json:"id"`
+		Hostname   string    `json:"hostname"`
+		IP         string    `json:"ip"`
+		OS         string    `json:"os"`
+		Status     string    `json:"status"`
+		LastSeenAt time.Time `json:"last_seen_at"`
+	}
+	result := make([]agentSummary, len(agents))
+	for i, a := range agents {
+		result[i] = agentSummary{
+			ID:         a.ID,
+			Hostname:   a.Hostname,
+			IP:         a.IP,
+			OS:         a.OS,
+			Status:     a.Status,
+			LastSeenAt: a.LastSeenAt,
+		}
+	}
+	response.Success(c, gin.H{"agents": result, "total": len(result)})
+}
+
+func getAgent(c *gin.Context) {
+	hostname := c.Param("hostname")
+	var agent model.AgentInstance
+	if err := database.DB.Where("hostname = ?", hostname).First(&agent).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "agent not found")
+		return
+	}
+
+	var latest model.MetricSnapshot
+	database.DB.Where("agent_id = ?", agent.ID).Order("reported_at DESC").First(&latest)
+
+	response.Success(c, gin.H{
+		"agent":         agent,
+		"latest_metric": latest,
+	})
+}
+
+func getAgentMetrics(c *gin.Context) {
+	hostname := c.Param("hostname")
+	metricType := c.DefaultQuery("metric", "cpu")
+	duration := c.DefaultQuery("duration", "1h")
+	limitStr := c.DefaultQuery("limit", "60")
+
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 || limit > 500 {
+		limit = 60
+	}
+
+	var since time.Time
+	switch duration {
+	case "1h":
+		since = time.Now().Add(-1 * time.Hour)
+	case "6h":
+		since = time.Now().Add(-6 * time.Hour)
+	case "24h":
+		since = time.Now().Add(-24 * time.Hour)
+	case "7d":
+		since = time.Now().Add(-7 * 24 * time.Hour)
+	default:
+		since = time.Now().Add(-1 * time.Hour)
+	}
+
+	var snapshots []model.MetricSnapshot
+	db := database.DB.Where("hostname = ? AND reported_at >= ?", hostname, since).
+		Order("reported_at ASC").Limit(limit)
+	db.Find(&snapshots)
+
+	type metricPoint struct {
+		Timestamp string  `json:"timestamp"`
+		Value     float64 `json:"value"`
+	}
+	points := make([]metricPoint, len(snapshots))
+	for i, s := range snapshots {
+		var val float64
+		switch metricType {
+		case "cpu":
+			val = s.CPUPercent
+		case "memory":
+			val = s.MemPercent
+		case "disk":
+			val = s.DiskPercent
+		case "network_recv":
+			val = s.NetRecvBytes
+		case "network_sent":
+			val = s.NetSentBytes
+		case "load":
+			val = s.Load1
+		default:
+			val = s.CPUPercent
+		}
+		points[i] = metricPoint{
+			Timestamp: s.ReportedAt.Format(time.RFC3339),
+			Value:     val,
+		}
+	}
+
+	response.Success(c, gin.H{
+		"hostname": hostname,
+		"metric":   metricType,
+		"points":   points,
+	})
+}
+
+// ==================== WebSocket ====================
 
 var (
-	mu         sync.RWMutex
-	services   []Service
-	incidents  []Incident
-	alertRules []AlertRule
-	insights   map[string][]Insight
-	topology   map[string]TopologyNode
-	integrations []Integration
-	members    []TeamMember
-	topErrors  []TopError
-
-	// WebSocket
-	upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-	clients  = make(map[*websocket.Conn]bool)
+	upgrader   = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	clients    = make(map[*websocket.Conn]bool)
+	clientsMu  sync.RWMutex
 )
 
-func initData() {
-	services = []Service{
-		{"api-gateway", "healthy", "4,200", "12ms", "45ms", "0.02%", "99.99%", "Platform", []string{"user-service", "auth-service", "payment-gateway", "order-service", "cache-layer"}},
-		{"auth-service", "down", "1,100", "8.5s", "12s", "14.2%", "99.81%", "Identity", []string{"cache-layer", "user-service"}},
-		{"payment-gateway", "degraded", "890", "1.2s", "2.1s", "3.8%", "99.92%", "Payments", []string{"cache-layer", "event-pipeline"}},
-		{"user-service", "healthy", "3,400", "8ms", "32ms", "0.01%", "99.98%", "Identity", []string{"cache-layer"}},
-		{"order-service", "healthy", "2,100", "18ms", "67ms", "0.05%", "99.97%", "Commerce", []string{"payment-gateway", "event-pipeline", "user-service"}},
-		{"notification-svc", "healthy", "560", "6ms", "28ms", "0.03%", "99.95%", "Platform", []string{"event-pipeline"}},
-		{"cache-layer", "degraded", "12,000", "2ms", "210ms", "0.8%", "99.88%", "Infrastructure", []string{}},
-		{"event-pipeline", "healthy", "8,700", "4ms", "15ms", "0.01%", "99.99%", "Data", []string{}},
-		{"search-service", "healthy", "1,800", "22ms", "89ms", "0.08%", "99.94%", "Discovery", []string{"cache-layer"}},
-		{"cdn-edge", "healthy", "45,000", "2ms", "8ms", "0.00%", "100.00%", "Infrastructure", []string{}},
-		{"analytics-svc", "healthy", "2,300", "35ms", "120ms", "0.12%", "99.91%", "Data", []string{"event-pipeline"}},
-		{"service-mesh", "healthy", "-", "0.5ms", "2ms", "0.00%", "99.99%", "Infrastructure", []string{}},
-	}
+// ==================== Helpers ====================
 
-	incidents = []Incident{
-		{"INC-4221", "Memory leak in auth-svc causing OOM kills", "auth-service", "critical", "14m", "2 min ago", "auth-svc v2.4.1 disabled session-cache eviction. Memory grows 12 MB/min."},
-		{"INC-4220", "Elevated 5xx on /api/v2/payments", "payment-gateway", "critical", "8m", "12 min ago", "Redis latency spike correlated with payment-gateway 5xx errors after deploy at 14:05 UTC."},
-		{"INC-4219", "Redis cluster latency spike > 200ms", "cache-layer", "warning", "23m", "28 min ago", "Shared Redis instance showing disk IO saturation."},
-		{"INC-4218", "Disk usage > 90% on us-east-1 node 7", "infra/storage", "warning", "1h 12m", "1 hr ago", "Log rotation disabled after infra update. Growth rate 2.1 GB/hr."},
-		{"INC-4217", "Kafka consumer lag exceeds threshold", "event-pipeline", "resolved", "45m", "2 hr ago", "Consumer group scaled from 3 to 6. Lag resolved."},
-		{"INC-4216", "DNS resolution failure for internal registry", "service-mesh", "resolved", "12m", "3 hr ago", "CoreDNS OOM killed after memory limit reduction."},
-		{"INC-4215", "SSL certificate expiring on api-gateway", "api-gateway", "info", "-", "4 hr ago", "Certificate expires in 14 days."},
-		{"INC-4214", "Pod restart loop in notification-svc", "notification-service", "resolved", "38m", "5 hr ago", "Missing env vars after config migration."},
-	}
+var authSvc = auth.NewAuthService()
 
-	alertRules = []AlertRule{
-		{"AR-001", "High CPU Usage", "cpu_usage > 85", "85%", "All Services", "warning", "12 min ago", true, false},
-		{"AR-002", "Memory Leak Detection", "memory_growth > 10MB/min", "10 MB/min", "auth-service", "critical", "2 min ago", true, true},
-		{"AR-003", "Error Rate Spike", "error_rate > 5", "5%", "All Services", "critical", "12 min ago", true, false},
-		{"AR-004", "Latency Anomaly", "p99 > 3x baseline", "3x", "All Services", "warning", "28 min ago", true, true},
-		{"AR-005", "Disk Usage Warning", "disk_usage > 90", "90%", "infra/*", "warning", "1 hr ago", true, false},
-		{"AR-006", "SSL Certificate Expiry", "cert_days < 14", "14 days", "All Services", "info", "4 hr ago", true, false},
-		{"AR-007", "Pod Restart Loop", "restart_count > 5 in 10m", "5/10min", "All Services", "critical", "5 hr ago", true, true},
-		{"AR-008", "Kafka Consumer Lag", "consumer_lag > 10000", "10,000", "event-pipeline", "warning", "2 hr ago", true, false},
-		{"AR-009", "Connection Pool Exhaustion", "pool_usage > 90", "90%", "payment-gateway", "critical", "12 min ago", true, true},
-		{"AR-010", "DNS Resolution Failure", "dns_fail_rate > 1", "1%", "service-mesh", "critical", "3 hr ago", false, false},
-		{"AR-011", "Request Timeout Rate", "timeout_rate > 2", "2%", "api-gateway", "warning", "-", true, false},
-		{"AR-012", "Cache Hit Ratio Drop", "cache_hit < 80", "80%", "cache-layer", "warning", "28 min ago", true, true},
-		{"AR-013", "Deployment Anomaly", "post_deploy_error > 2x", "2x", "All Services", "critical", "12 min ago", true, true},
-		{"AR-014", "Network Saturation", "bandwidth > 80", "80%", "cdn-edge", "info", "-", true, false},
-		{"AR-015", "Service Discovery Failures", "sd_fail > 0", "0", "service-mesh", "warning", "3 hr ago", true, false},
-		{"AR-016", "Queue Depth Alert", "queue_depth > 5000", "5,000", "event-pipeline", "warning", "2 hr ago", true, false},
-		{"AR-017", "Response Size Anomaly", "response_kb > 10x avg", "10x", "api-gateway", "info", "-", false, true},
-		{"AR-018", "GC Pause Time", "gc_pause > 200ms", "200ms", "auth-service", "warning", "2 min ago", true, false},
-		{"AR-019", "Thread Pool Saturation", "thread_usage > 95", "95%", "payment-gateway", "critical", "12 min ago", true, true},
-		{"AR-020", "Health Check Failures", "health_fail > 3 consecutive", "3", "All Services", "critical", "5 hr ago", true, false},
-		{"AR-021", "API Rate Limit Approaching", "rate_pct > 80", "80%", "api-gateway", "info", "-", true, false},
-		{"AR-022", "Database Connection Leak", "db_conn_growth > 10/hr", "10/hr", "user-service", "warning", "-", false, true},
-		{"AR-023", "Certificate Chain Invalid", "cert_valid == false", "false", "api-gateway", "critical", "-", true, false},
-		{"AR-024", "Memory Fragmentation", "mem_frag > 40", "40%", "cache-layer", "info", "28 min ago", true, true},
-		{"AR-025", "Cross-Region Latency", "cross_region_p99 > 500ms", "500ms", "cdn-edge", "warning", "-", true, false},
-		{"AR-026", "Secret Rotation Overdue", "secret_age > 90d", "90 days", "All Services", "info", "-", false, false},
-		{"AR-027", "Retry Storm Detection", "retry_rate > 30", "30%", "order-service", "warning", "-", true, true},
-		{"AR-028", "Log Volume Spike", "log_eps > 50000", "50K/s", "All Services", "info", "-", true, false},
-		{"AR-029", "Dependency Health", "dep_fail > 0", "0", "api-gateway", "critical", "12 min ago", true, false},
-		{"AR-030", "Anomalous Traffic Pattern", "traffic_zscore > 3", "3σ", "api-gateway", "warning", "-", true, true},
-		{"AR-031", "Container Restart Storm", "restart_storm == true", "true", "All Services", "critical", "5 hr ago", true, true},
-		{"AR-032", "Config Drift Detected", "config_hash != expected", "match", "All Services", "warning", "-", false, false},
-		{"AR-033", "Cost Anomaly", "hourly_cost > 2x avg", "2x", "All Services", "info", "-", true, false},
-		{"AR-034", "Data Freshness", "data_lag > 5min", "5 min", "analytics-svc", "warning", "-", true, false},
+func serviceDeps(svcName string) []string {
+	var deps []model.ServiceDependency
+	database.DB.Where("service_name = ?", svcName).Find(&deps)
+	result := make([]string, len(deps))
+	for i, d := range deps {
+		result[i] = d.DependencyID
 	}
+	return result
+}
 
-	insights = map[string][]Insight{
-		"root-cause": {
-			{"critical", "Memory leak caused by session-cache eviction disabled in auth-svc v2.4.1", "Deploy at 14:05 UTC changed session.cache.eviction.enabled from true to false. Memory grows at 12 MB/min. Affected 3 pods across us-east-1.", "auth-service", "97%", "2 min ago", "critical", "INC-4221"},
-			{"critical", "Redis latency spike correlated with payment-gateway 5xx errors", "Both anomalies triggered simultaneously after deploy at 14:05 UTC. Redis primary node showing disk IO saturation on the shared cache-layer instance.", "payment-gateway", "94%", "12 min ago", "critical", "INC-4220"},
-			{"warning", "Kafka consumer lag from scaled-down group not restored", "Consumer group was manually scaled to 3 for maintenance window at 11:00 UTC. Auto-scaler was paused and not re-enabled. Lag grew from 0 to 12,000 over 90 minutes.", "event-pipeline", "99%", "2 hr ago", "warning", "INC-4217"},
-			{"info", "DNS resolution failure from CoreDNS OOM kill", "CoreDNS pod was killed by OOM after memory limit reduced from 512Mi to 256Mi during cluster upgrade.", "service-mesh", "91%", "3 hr ago", "info", "INC-4216"},
-		},
-		"predictions": {
-			{"warning", "us-east-1 node 7 disk will reach 95% in ~6 hours", "Current growth rate: 2.1 GB/hr. Log rotation disabled after last infra update.", "infra/storage", "88%", "1 hr ago", "warning", "INC-4218"},
-			{"info", "auth-service failure may cascade to order-service within 30 min", "order-service depends on auth-service for token validation. Current auth-svc error rate of 14.2% will likely exhaust order-service circuit breaker.", "order-service", "76%", "5 min ago", "info", "INC-4221"},
-			{"info", "SSL certificate for payment-vendor API expires in 14 days", "Certificate for payments-vendor.internal expires on 2026-06-10. Cert-manager has not initiated renewal.", "payment-gateway", "100%", "6 hr ago", "info", ""},
-		},
-		"remediation": {
-			{"resolved", "Auto-scaled Kafka consumer group from 3 to 6 instances", "Consumer lag dropped from 12,000 to under 100 within 15 minutes.", "event-pipeline", "99%", "2 hr ago", "resolved", "INC-4217"},
-			{"resolved", "Auto-restarted CoreDNS with restored memory limit", "Restored memory limit from 256Mi to 512Mi. DNS resolution returned to normal.", "service-mesh", "95%", "3 hr ago", "resolved", "INC-4216"},
-			{"resolved", "Triggered log rotation and freed 12 GB on node 7", "Disk usage dropped from 91.2% to 78.9%.", "infra/storage", "90%", "1 hr ago", "resolved", "INC-4218"},
-			{"info", "Suggested rollback for auth-svc to v2.4.0", "Rollback will re-enable session-cache eviction and resolve the memory leak.", "auth-service", "97%", "2 min ago", "info", "INC-4221"},
-		},
-		"patterns": {
-			{"warning", "Shared Redis instance creates blast radius across services", "auth-service, payment-gateway, and user-service all share the same Redis cluster.", "cache-layer", "85%", "30 min ago", "warning", ""},
-			{"info", "Deploys between 14:00-15:00 UTC have 3x higher incident rate", "67% of incidents coincide with deploys during this window.", "platform", "82%", "1 day ago", "info", ""},
-			{"info", "notification-svc restarts correlate with config migrations", "3 of the last 4 config migrations triggered restart loops.", "notification-service", "78%", "5 hr ago", "info", "INC-4214"},
-		},
+func topologyDeps(nodeName string) []string {
+	var deps []model.TopologyDependency
+	database.DB.Where("node_name = ?", nodeName).Find(&deps)
+	result := make([]string, len(deps))
+	for i, d := range deps {
+		result[i] = d.DepNodeID
 	}
+	return result
+}
 
-	topology = map[string]TopologyNode{
-		"api-gateway":     {"api-gateway", "healthy", "4,200", "45ms", []string{"auth-service", "user-service", "payment-gateway", "order-service", "cache-layer"}},
-		"auth-service":    {"auth-service", "down", "1,100", "12s", []string{"cache-layer", "user-service"}},
-		"payment-gateway": {"payment-gateway", "degraded", "890", "2.1s", []string{"cache-layer", "event-pipeline"}},
-		"cache-layer":     {"cache-layer", "degraded", "12,000", "210ms", []string{}},
-		"user-service":    {"user-service", "healthy", "3,400", "32ms", []string{"cache-layer"}},
-		"notification-svc":{"notification-svc", "healthy", "560", "28ms", []string{"event-pipeline"}},
-		"order-service":   {"order-service", "healthy", "2,100", "67ms", []string{"payment-gateway", "event-pipeline", "user-service"}},
-		"search-service":  {"search-service", "healthy", "1,800", "89ms", []string{"cache-layer"}},
-		"analytics-svc":   {"analytics-svc", "healthy", "2,300", "120ms", []string{"event-pipeline"}},
-		"event-pipeline":  {"event-pipeline", "healthy", "8,700", "15ms", []string{}},
-		"cdn-edge":        {"cdn-edge", "healthy", "45,000", "8ms", []string{}},
-		"service-mesh":    {"service-mesh", "healthy", "-", "2ms", []string{}},
+func dbServiceToDTO(s model.Service) ServiceDTO {
+	return ServiceDTO{
+		Name:    s.Name,
+		Status:  s.Status,
+		RPS:     s.RPS,
+		P50:     s.P50,
+		P99:     s.P99,
+		ErrRate: s.ErrRate,
+		Uptime:  s.Uptime,
+		Team:    s.Team,
+		Deps:    serviceDeps(s.Name),
 	}
+}
 
-	integrations = []Integration{
-		{"INT-001", "Slack Alerts", "slack", "Notification", "connected", true, 1247},
-		{"INT-002", "PagerDuty", "pagerduty", "On-call", "connected", true, 892},
-		{"INT-003", "Prometheus", "prometheus", "Metrics", "connected", true, 45200},
-		{"INT-004", "OpenTelemetry", "otel", "Traces", "connected", true, 23100},
-		{"INT-005", "Zabbix", "zabbix", "Legacy Monitoring", "connected", true, 634},
-		{"INT-006", "Grafana", "grafana", "Visualization", "disconnected", false, 0},
-		{"INT-007", "Webhook (Custom)", "webhook", "Custom", "connected", true, 201},
-		{"INT-008", "Filebeat", "filebeat", "Logs", "connected", true, 89400},
+func dbIncidentToDTO(i model.Incident) IncidentDTO {
+	return IncidentDTO{
+		ID:       i.ID,
+		Summary:  i.Summary,
+		Service:  i.Service,
+		Status:   i.Status,
+		Duration: i.Duration,
+		Time:     i.Time,
+		Detail:   i.Detail,
 	}
+}
 
-	members = []TeamMember{
-		{"U001", "Leo Hang", "leo@opsight.io", "Admin", "Platform"},
-		{"U002", "Zhang Wei", "zhangwei@opsight.io", "Editor", "Identity"},
-		{"U003", "Li Na", "lina@opsight.io", "Editor", "Payments"},
-		{"U004", "Wang Fang", "wangfang@opsight.io", "Viewer", "Commerce"},
-		{"U005", "Chen Jie", "chenjie@opsight.io", "Editor", "Infrastructure"},
-		{"U006", "Liu Yang", "liuyang@opsight.io", "Editor", "Data"},
-		{"U007", "Zhao Min", "zhaomin@opsight.io", "Viewer", "Discovery"},
-		{"U008", "Sun Lei", "sunlei@opsight.io", "Editor", "Platform"},
+func dbAlertRuleToDTO(r model.AlertRule) AlertRuleDTO {
+	return AlertRuleDTO{
+		ID:        r.ID,
+		Name:      r.Name,
+		Condition: r.Condition,
+		Threshold: r.Threshold,
+		Service:   r.Service,
+		Severity:  r.Severity,
+		LastTrig:  r.LastTriggered,
+		Enabled:   r.Enabled,
+		IsAI:      r.IsAI,
 	}
+}
 
-	topErrors = []TopError{
-		{"OutOfMemoryError: Java heap space", 1247, "up", "auth-service"},
-		{"ConnectionPoolTimeoutException", 892, "up", "payment-gateway"},
-		{"RedisTimeoutException: Command timed out", 634, "stable", "cache-layer"},
-		{"KafkaException: OffsetOutOfRange", 201, "down", "event-pipeline"},
-		{"SSLHandshakeException: Remote host closed", 89, "down", "api-gateway"},
+func dbInsightToDTO(i model.Insight) InsightDTO {
+	return InsightDTO{
+		Type:       i.Type,
+		Title:      i.Title,
+		Body:       i.Body,
+		Service:    i.Service,
+		Confidence: i.Confidence,
+		Time:       i.Time,
+		Severity:   i.Severity,
+		Related:    i.Related,
+	}
+}
+
+func dbTopologyNodeToDTO(n model.TopologyNode) TopologyNodeDTO {
+	return TopologyNodeDTO{
+		ID:     n.Name,
+		Status: n.Status,
+		RPS:    n.RPS,
+		P99:    n.P99,
+		Deps:   topologyDeps(n.Name),
+	}
+}
+
+func dbIntegrationToDTO(i model.Integration) IntegrationDTO {
+	return IntegrationDTO{
+		ID:         i.ID,
+		Name:       i.Name,
+		Type:       i.Type,
+		Category:   i.Category,
+		Status:     i.Status,
+		Enabled:    i.Enabled,
+		EventCount: i.EventCount,
+	}
+}
+
+func dbTeamMemberToDTO(m model.TeamMember) TeamMemberDTO {
+	return TeamMemberDTO{
+		ID:    m.ID,
+		Name:  m.Name,
+		Email: m.Email,
+		Role:  m.Role,
+		Team:  m.Team,
+	}
+}
+
+func dbTopErrorToDTO(e model.TopError) TopErrorDTO {
+	return TopErrorDTO{
+		Error:   e.Error,
+		Count:   e.Count,
+		Trend:   e.Trend,
+		Service: e.Service,
 	}
 }
 
 // ==================== Handlers ====================
 
 func healthCheck(c *gin.Context) {
-	c.JSON(200, gin.H{"status": "ok", "time": time.Now().UTC()})
+	response.Success(c, gin.H{"status": "ok", "time": time.Now().UTC()})
 }
 
 func getDashboardSummary(c *gin.Context) {
+	var services []model.Service
+	database.DB.Find(&services)
+
 	healthy, degraded, down := 0, 0, 0
 	for _, s := range services {
 		switch s.Status {
@@ -268,13 +482,11 @@ func getDashboardSummary(c *gin.Context) {
 			down++
 		}
 	}
-	activeIncidents := 0
-	for _, inc := range incidents {
-		if inc.Status == "critical" || inc.Status == "warning" {
-			activeIncidents++
-		}
-	}
-	c.JSON(200, gin.H{
+
+	var activeIncidents int64
+	database.DB.Model(&model.Incident{}).Where("status IN ?", []string{"critical", "warning"}).Count(&activeIncidents)
+
+	response.Success(c, gin.H{
 		"active_incidents":  activeIncidents,
 		"mttr_minutes":      4.2,
 		"services_healthy":  healthy,
@@ -294,7 +506,7 @@ func getErrorRate(c *gin.Context) {
 		labels[i] = fmt.Sprintf("%02d:00", i)
 		values[i] = data[i]
 	}
-	c.JSON(200, gin.H{"labels": labels, "values": values})
+	response.Success(c, gin.H{"labels": labels, "values": values})
 }
 
 func getLatency(c *gin.Context) {
@@ -302,11 +514,18 @@ func getLatency(c *gin.Context) {
 	p50 := []int{12, 8500, 1200, 8, 18, 6, 85, 4, 22, 2, 35, 1}
 	p90 := []int{28, 10000, 1800, 22, 45, 18, 150, 10, 55, 5, 80, 2}
 	p99 := []int{45, 12000, 2100, 32, 67, 28, 210, 15, 89, 8, 120, 2}
-	c.JSON(200, gin.H{"labels": svcLabels, "p50": p50, "p90": p90, "p99": p99})
+	response.Success(c, gin.H{"labels": svcLabels, "p50": p50, "p90": p90, "p99": p99})
 }
 
 func getTopErrors(c *gin.Context) {
-	c.JSON(200, gin.H{"errors": topErrors})
+	var topErrors []model.TopError
+	database.DB.Find(&topErrors)
+
+	dto := make([]TopErrorDTO, len(topErrors))
+	for i, e := range topErrors {
+		dto[i] = dbTopErrorToDTO(e)
+	}
+	response.Success(c, gin.H{"errors": dto})
 }
 
 func getIncidents(c *gin.Context) {
@@ -314,97 +533,111 @@ func getIncidents(c *gin.Context) {
 	service := c.Query("service")
 	search := c.Query("search")
 
-	mu.RLock()
-	defer mu.RUnlock()
-
-	result := make([]Incident, 0, len(incidents))
-	for _, inc := range incidents {
-		if status != "" && status != "all" && inc.Status != status {
-			continue
-		}
-		if service != "" && service != "all" && inc.Service != service {
-			continue
-		}
-		if search != "" && !strings.Contains(strings.ToLower(inc.Summary), strings.ToLower(search)) {
-			continue
-		}
-		result = append(result, inc)
+	db := database.DB.Model(&model.Incident{})
+	if status != "" && status != "all" {
+		db = db.Where("status = ?", status)
 	}
-	c.JSON(200, gin.H{"incidents": result, "total": len(result)})
+	if service != "" && service != "all" {
+		db = db.Where("service = ?", service)
+	}
+	if search != "" {
+		db = db.Where("LOWER(summary) LIKE ?", "%"+strings.ToLower(search)+"%")
+	}
+
+	var incidents []model.Incident
+	db.Find(&incidents)
+
+	dto := make([]IncidentDTO, len(incidents))
+	for i, inc := range incidents {
+		dto[i] = dbIncidentToDTO(inc)
+	}
+	response.Success(c, gin.H{"incidents": dto, "total": len(dto)})
 }
 
 func getIncident(c *gin.Context) {
 	id := c.Param("id")
-	mu.RLock()
-	defer mu.RUnlock()
-	for _, inc := range incidents {
-		if inc.ID == id {
-			c.JSON(200, inc)
-			return
-		}
+	var inc model.Incident
+	if err := database.DB.Where("id = ?", id).First(&inc).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "incident not found")
+		return
 	}
-	c.JSON(404, gin.H{"error": "incident not found"})
+	response.Success(c, dbIncidentToDTO(inc))
 }
 
 func resolveIncident(c *gin.Context) {
 	id := c.Param("id")
-	mu.Lock()
-	for i := range incidents {
-		if incidents[i].ID == id {
-			incidents[i].Status = "resolved"
-			incidents[i].Duration = "resolved"
-			mu.Unlock()
-			c.JSON(200, incidents[i])
-			return
-		}
+	var inc model.Incident
+	if err := database.DB.Where("id = ?", id).First(&inc).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "incident not found")
+		return
 	}
-	mu.Unlock()
-	c.JSON(404, gin.H{"error": "incident not found"})
+	inc.Status = "resolved"
+	inc.Duration = "resolved"
+	database.DB.Save(&inc)
+
+	// Audit log
+	userID, email, _ := auth.GetCurrentUser(c)
+	audit.Log(userID, email, "resolve", "incidents", id, "Incident resolved", c.ClientIP(), c.GetHeader("User-Agent"), "success")
+
+	response.Success(c, dbIncidentToDTO(inc))
 }
 
 func getServices(c *gin.Context) {
-	mu.RLock()
-	defer mu.RUnlock()
-	c.JSON(200, gin.H{"services": services, "total": len(services)})
+	var services []model.Service
+	database.DB.Find(&services)
+
+	dto := make([]ServiceDTO, len(services))
+	for i, s := range services {
+		dto[i] = dbServiceToDTO(s)
+	}
+	response.Success(c, gin.H{"services": dto, "total": len(dto)})
 }
 
 func getService(c *gin.Context) {
 	name := c.Param("name")
-	mu.RLock()
-	defer mu.RUnlock()
-	for _, s := range services {
-		if s.Name == name {
-			c.JSON(200, s)
-			return
-		}
+	var s model.Service
+	if err := database.DB.Where("name = ?", name).First(&s).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "service not found")
+		return
 	}
-	c.JSON(404, gin.H{"error": "service not found"})
+	response.Success(c, dbServiceToDTO(s))
 }
 
 func getAlertRules(c *gin.Context) {
-	mu.RLock()
-	defer mu.RUnlock()
-	c.JSON(200, gin.H{"rules": alertRules, "total": len(alertRules)})
+	var rules []model.AlertRule
+	database.DB.Find(&rules)
+
+	dto := make([]AlertRuleDTO, len(rules))
+	for i, r := range rules {
+		dto[i] = dbAlertRuleToDTO(r)
+	}
+	response.Success(c, gin.H{"rules": dto, "total": len(dto)})
 }
 
 func toggleAlertRule(c *gin.Context) {
 	id := c.Param("id")
-	mu.Lock()
-	for i := range alertRules {
-		if alertRules[i].ID == id {
-			alertRules[i].Enabled = !alertRules[i].Enabled
-			mu.Unlock()
-			c.JSON(200, alertRules[i])
-			return
-		}
+	var rule model.AlertRule
+	if err := database.DB.Where("id = ?", id).First(&rule).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "rule not found")
+		return
 	}
-	mu.Unlock()
-	c.JSON(404, gin.H{"error": "rule not found"})
+	rule.Enabled = !rule.Enabled
+	database.DB.Save(&rule)
+
+	// Audit log
+	userID, email, _ := auth.GetCurrentUser(c)
+	action := "enabled"
+	if !rule.Enabled {
+		action = "disabled"
+	}
+	audit.Log(userID, email, "toggle", "alert-rules", id, "Alert rule "+action+": "+rule.Name, c.ClientIP(), c.GetHeader("User-Agent"), "success")
+
+	response.Success(c, dbAlertRuleToDTO(rule))
 }
 
 func getMetricsQuery(c *gin.Context) {
 	metric := c.DefaultQuery("metric", "cpu_usage")
-	service := c.DefaultQuery("service", "")
+	hostname := c.DefaultQuery("hostname", "")
 	now := time.Now()
 
 	type point struct {
@@ -415,50 +648,147 @@ func getMetricsQuery(c *gin.Context) {
 		P99       float64 `json:"p99"`
 	}
 
+	// Map frontend metric names to DB columns
+	var colName string
+	switch metric {
+	case "cpu_usage":
+		colName = "cpu_percent"
+	case "memory_usage":
+		colName = "mem_percent"
+	case "disk_usage":
+		colName = "disk_percent"
+	case "network_recv":
+		colName = "net_recv_bytes"
+	case "network_sent":
+		colName = "net_sent_bytes"
+	case "load_avg":
+		colName = "load1"
+	case "error_rate", "latency_p50", "latency_p99", "request_rate", "connection_count", "gc_pause", "thread_count":
+		// Service-level metrics that agents don't collect — fallback to random for backward compat
+		points := make([]point, 24)
+		for i := 0; i < 24; i++ {
+			t := now.Add(time.Duration(-23+i) * time.Hour)
+			base := 45.0 + rand.Float64()*20
+			if metric == "error_rate" {
+				base = 0.1 + rand.Float64()*0.5
+			} else if metric == "latency_p50" || metric == "latency_p99" {
+				base = 20 + rand.Float64()*80
+			}
+			points[i] = point{
+				Timestamp: t.Format("15:04"),
+				Value:     math.Round(base*100) / 100,
+				Avg:       math.Round(base*100) / 100,
+				P95:       math.Round((base*1.3)*100) / 100,
+				P99:       math.Round((base*1.6)*100) / 100,
+			}
+		}
+		response.Success(c, gin.H{"metric": metric, "service": hostname, "points": points})
+		return
+	default:
+		colName = "cpu_percent"
+	}
+
+	// Query MetricSnapshot from DB, grouped by hour for last 24h
+	cutoff := now.Add(-24 * time.Hour)
+	db := database.DB.Model(&model.MetricSnapshot{}).
+		Where("reported_at >= ?", cutoff)
+	if hostname != "" {
+		db = db.Where("hostname = ?", hostname)
+	}
+
+	var snapshots []model.MetricSnapshot
+	db.Order("reported_at ASC").Find(&snapshots)
+
+	// Group by hour
+	hourBuckets := make(map[int][]float64)
+	for _, s := range snapshots {
+		hour := s.ReportedAt.Hour()
+		var val float64
+		switch colName {
+		case "cpu_percent":
+			val = s.CPUPercent
+		case "mem_percent":
+			val = s.MemPercent
+		case "disk_percent":
+			val = s.DiskPercent
+		case "net_recv_bytes":
+			val = s.NetRecvBytes
+		case "net_sent_bytes":
+			val = s.NetSentBytes
+		case "load1":
+			val = s.Load1
+		}
+		hourBuckets[hour] = append(hourBuckets[hour], val)
+	}
+
+	// Build 24 data points
 	points := make([]point, 24)
 	for i := 0; i < 24; i++ {
 		t := now.Add(time.Duration(-23+i) * time.Hour)
-		base := 45.0 + rand.Float64()*20
-		if metric == "error_rate" {
-			base = 0.1 + rand.Float64()*0.5
-		} else if metric == "latency" {
-			base = 20 + rand.Float64()*80
+		bucket := hourBuckets[t.Hour()]
+		var val, avg, p95, p99 float64
+		if len(bucket) > 0 {
+			val = bucket[len(bucket)-1] // latest in bucket
+			avg, p95, p99 = computeStats(bucket)
 		}
 		points[i] = point{
 			Timestamp: t.Format("15:04"),
-			Value:     math.Round(base*100) / 100,
-			Avg:       math.Round(base*100) / 100,
-			P95:       math.Round((base*1.3)*100) / 100,
-			P99:       math.Round((base*1.6)*100) / 100,
+			Value:     math.Round(val*100) / 100,
+			Avg:       math.Round(avg*100) / 100,
+			P95:       math.Round(p95*100) / 100,
+			P99:       math.Round(p99*100) / 100,
 		}
 	}
 
-	c.JSON(200, gin.H{"metric": metric, "service": service, "points": points})
+	response.Success(c, gin.H{"metric": metric, "service": hostname, "points": points})
+}
+
+func computeStats(values []float64) (avg, p95, p99 float64) {
+	if len(values) == 0 {
+		return 0, 0, 0
+	}
+	sum := 0.0
+	for _, v := range values {
+		sum += v
+	}
+	avg = sum / float64(len(values))
+
+	sorted := make([]float64, len(values))
+	copy(sorted, values)
+	sort.Float64s(sorted)
+
+	p95Idx := int(float64(len(sorted)-1) * 0.95)
+	p99Idx := int(float64(len(sorted)-1) * 0.99)
+	p95 = sorted[p95Idx]
+	p99 = sorted[p99Idx]
+	return
 }
 
 func getMetricsNames(c *gin.Context) {
-	names := []string{"cpu_usage", "memory_usage", "disk_usage", "error_rate", "latency_p50", "latency_p99", "request_rate", "connection_count", "gc_pause", "thread_count"}
-	c.JSON(200, gin.H{"metrics": names})
+	names := []string{
+		"cpu_usage", "memory_usage", "disk_usage",
+		"network_recv", "network_sent", "load_avg",
+		"error_rate", "latency_p50", "latency_p99",
+		"request_rate", "connection_count", "gc_pause", "thread_count",
+	}
+	response.Success(c, gin.H{"metrics": names})
 }
 
 func getTopology(c *gin.Context) {
-	mu.RLock()
-	defer mu.RUnlock()
+	var nodes []model.TopologyNode
+	database.DB.Find(&nodes)
 
-	nodes := make([]TopologyNode, 0, len(topology))
-	for _, n := range topology {
-		nodes = append(nodes, n)
+	dto := make([]TopologyNodeDTO, len(nodes))
+	for i, n := range nodes {
+		dto[i] = dbTopologyNodeToDTO(n)
 	}
-	sort.Slice(nodes, func(i, j int) bool { return nodes[i].ID < nodes[j].ID })
-	c.JSON(200, gin.H{"nodes": nodes})
+	sort.Slice(dto, func(i, j int) bool { return dto[i].ID < dto[j].ID })
+	response.Success(c, gin.H{"nodes": dto})
 }
 
 func getRCA(c *gin.Context) {
 	serviceID := c.Param("serviceId")
-	mu.RLock()
-	defer mu.RUnlock()
 
-	// Simple BFS root cause analysis
 	type rcaResult struct {
 		Service    string   `json:"service"`
 		RootCause  string   `json:"root_cause"`
@@ -466,28 +796,30 @@ func getRCA(c *gin.Context) {
 		Confidence string   `json:"confidence"`
 	}
 
-	node, ok := topology[serviceID]
-	if !ok {
-		c.JSON(404, gin.H{"error": "service not found"})
+	var node model.TopologyNode
+	if err := database.DB.Where("name = ?", serviceID).First(&node).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "service not found")
 		return
 	}
 
 	if node.Status == "healthy" {
-		c.JSON(200, gin.H{"service": serviceID, "status": "healthy", "message": "No issues detected"})
+		response.Success(c, gin.H{"service": serviceID, "status": "healthy", "message": "No issues detected"})
 		return
 	}
 
-	// Find root cause by traversing dependencies
 	chain := []string{serviceID}
 	rootCause := serviceID
-	for _, dep := range node.Deps {
-		if depNode, ok := topology[dep]; ok && depNode.Status != "healthy" {
+
+	deps := topologyDeps(serviceID)
+	for _, dep := range deps {
+		var depNode model.TopologyNode
+		if err := database.DB.Where("name = ?", dep).First(&depNode).Error; err == nil && depNode.Status != "healthy" {
 			chain = append(chain, dep)
 			rootCause = dep
 		}
 	}
 
-	c.JSON(200, rcaResult{
+	response.Success(c, rcaResult{
 		Service:    serviceID,
 		RootCause:  rootCause,
 		Chain:      chain,
@@ -497,26 +829,107 @@ func getRCA(c *gin.Context) {
 
 func getInsights(c *gin.Context) {
 	insightType := c.DefaultQuery("type", "root-cause")
-	mu.RLock()
-	defer mu.RUnlock()
 
-	if items, ok := insights[insightType]; ok {
-		c.JSON(200, gin.H{"type": insightType, "insights": items})
-		return
+	var items []model.Insight
+	database.DB.Where("type = ?", insightType).Find(&items)
+
+	dto := make([]InsightDTO, len(items))
+	for i, item := range items {
+		dto[i] = dbInsightToDTO(item)
 	}
-	c.JSON(200, gin.H{"type": insightType, "insights": []Insight{}})
+	response.Success(c, gin.H{"type": insightType, "insights": dto})
 }
 
 func getIntegrations(c *gin.Context) {
-	mu.RLock()
-	defer mu.RUnlock()
-	c.JSON(200, gin.H{"integrations": integrations, "total": len(integrations)})
+	var integrations []model.Integration
+	database.DB.Find(&integrations)
+
+	dto := make([]IntegrationDTO, len(integrations))
+	for i, item := range integrations {
+		dto[i] = dbIntegrationToDTO(item)
+	}
+	response.Success(c, gin.H{"integrations": dto, "total": len(dto)})
 }
 
 func getTeam(c *gin.Context) {
-	mu.RLock()
-	defer mu.RUnlock()
-	c.JSON(200, gin.H{"members": members, "total": len(members)})
+	var members []model.TeamMember
+	database.DB.Find(&members)
+
+	dto := make([]TeamMemberDTO, len(members))
+	for i, m := range members {
+		dto[i] = dbTeamMemberToDTO(m)
+	}
+	response.Success(c, gin.H{"members": dto, "total": len(dto)})
+}
+
+func parseTime(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		t2, err2 := time.Parse("2006-01-02", s)
+		if err2 != nil {
+			return time.Time{}
+		}
+		return t2
+	}
+	return t
+}
+
+func getAuditLogs(c *gin.Context) {
+	userIDStr := c.Query("user_id")
+	userID := uint(0)
+	if userIDStr != "" {
+		if v, err := strconv.ParseUint(userIDStr, 10, 64); err == nil {
+			userID = uint(v)
+		}
+	}
+
+	action := c.Query("action")
+	resource := c.Query("resource")
+	startTime := parseTime(c.Query("start_time"))
+	endTime := parseTime(c.Query("end_time"))
+
+	page := 1
+	pageSize := 20
+	if p := c.Query("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+	if ps := c.Query("page_size"); ps != "" {
+		if v, err := strconv.Atoi(ps); err == nil && v > 0 && v <= 100 {
+			pageSize = v
+		}
+	}
+
+	logs, total, err := audit.Query(userID, action, resource, startTime, endTime, page, pageSize)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.ErrInternalServer, "failed to query audit logs")
+		return
+	}
+
+	response.Paginated(c, logs, int(total), page, pageSize)
+}
+
+func getAuditStats(c *gin.Context) {
+	totalCount, todayCount, breakdown, err := audit.Stats()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.ErrInternalServer, "failed to get audit stats")
+		return
+	}
+
+	actionsMap := make(map[string]int64)
+	for _, b := range breakdown {
+		actionsMap[b.Action] = b.Count
+	}
+
+	response.Success(c, gin.H{
+		"total_count":       totalCount,
+		"today_count":       todayCount,
+		"actions_breakdown": actionsMap,
+	})
 }
 
 func login(c *gin.Context) {
@@ -525,14 +938,189 @@ func login(c *gin.Context) {
 		Password string `json:"password" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "email and password required"})
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "email and password required")
 		return
 	}
-	// Demo: accept any login
-	c.JSON(200, gin.H{
-		"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo-token",
-		"user":  gin.H{"id": "U001", "name": "Leo Hang", "email": req.Email, "role": "admin"},
+
+	result, err := authSvc.Login(req.Email, req.Password)
+	if err != nil {
+		audit.Log(0, req.Email, "login_failed", "auth/login", "", err.Error(), c.ClientIP(), c.GetHeader("User-Agent"), "failure")
+		response.Error(c, http.StatusUnauthorized, response.ErrUnauthorized, err.Error())
+		return
+	}
+
+	audit.Log(0, req.Email, "login", "auth/login", "", "Login successful", c.ClientIP(), c.GetHeader("User-Agent"), "success")
+	response.Success(c, gin.H{
+		"token": result.Token,
+		"user":  result.User,
 	})
+}
+
+func register(c *gin.Context) {
+	var req struct {
+		Name     string `json:"name" binding:"required"`
+		Email    string `json:"email" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		Role     string `json:"role"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "name, email, and password are required")
+		return
+	}
+	if req.Role == "" {
+		req.Role = "viewer"
+	}
+
+	user, err := authSvc.Register(req.Name, req.Email, req.Password, req.Role)
+	if err != nil {
+		response.Error(c, http.StatusConflict, response.ErrBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"user": user})
+}
+
+func getCurrentUser(c *gin.Context) {
+	userID, _, _ := auth.GetCurrentUser(c)
+	user, err := authSvc.GetUserByID(userID)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "user not found")
+		return
+	}
+	response.Success(c, gin.H{"user": user})
+}
+
+func refreshToken(c *gin.Context) {
+	userID, email, role := auth.GetCurrentUser(c)
+	token, err := auth.GenerateToken(userID, email, role)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.ErrInternalServer, "failed to refresh token")
+		return
+	}
+	response.Success(c, gin.H{"token": token})
+}
+
+// ==================== Notification Handlers ====================
+
+func listNotificationChannels(c *gin.Context) {
+	var channels []model.NotificationChannel
+	database.DB.Find(&channels)
+	response.Success(c, gin.H{"channels": channels})
+}
+
+func createNotificationChannel(c *gin.Context) {
+	var ch model.NotificationChannel
+	if err := c.ShouldBindJSON(&ch); err != nil {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid request body")
+		return
+	}
+	if err := database.DB.Create(&ch).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, response.ErrInternalServer, "failed to create channel")
+		return
+	}
+	response.Success(c, gin.H{"channel": ch})
+}
+
+func updateNotificationChannel(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid channel id")
+		return
+	}
+
+	var ch model.NotificationChannel
+	if err := database.DB.First(&ch, id).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "channel not found")
+		return
+	}
+
+	var update model.NotificationChannel
+	if err := c.ShouldBindJSON(&update); err != nil {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid request body")
+		return
+	}
+
+	database.DB.Model(&ch).Updates(update)
+	response.Success(c, gin.H{"channel": ch})
+}
+
+func deleteNotificationChannel(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid channel id")
+		return
+	}
+
+	var ch model.NotificationChannel
+	if err := database.DB.First(&ch, id).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "channel not found")
+		return
+	}
+
+	database.DB.Delete(&ch)
+	response.Success(c, gin.H{"message": "channel deleted"})
+}
+
+func getNotificationHistory(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	channelID := c.Query("channel_id")
+	status := c.Query("status")
+	startTime := c.Query("start_time")
+	endTime := c.Query("end_time")
+
+	db := database.DB.Model(&model.NotificationHistory{})
+	if channelID != "" {
+		db = db.Where("channel_id = ?", channelID)
+	}
+	if status != "" {
+		db = db.Where("status = ?", status)
+	}
+	if startTime != "" {
+		db = db.Where("created_at >= ?", startTime)
+	}
+	if endTime != "" {
+		db = db.Where("created_at <= ?", endTime)
+	}
+
+	var total int64
+	db.Count(&total)
+
+	var history []model.NotificationHistory
+	db.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&history)
+
+	response.Paginated(c, history, int(total), page, pageSize)
+}
+
+func testNotification(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("channelId"), 10, 64)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid channel id")
+		return
+	}
+
+	var ch model.NotificationChannel
+	if err := database.DB.First(&ch, uint(id)).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "channel not found")
+		return
+	}
+
+	if !ch.Enabled {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "channel is disabled")
+		return
+	}
+
+	title, body := notify.FormatTestMessage(ch.Name)
+	notify.SendAlert(ch.ID, "test", "info", title, body)
+
+	response.Success(c, gin.H{"message": "test notification sent", "channel": ch.Name})
 }
 
 // ==================== WebSocket ====================
@@ -540,17 +1128,17 @@ func login(c *gin.Context) {
 func handleWS(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Println("WebSocket upgrade error:", err)
+		logger.Error().Err(err).Msg("WebSocket upgrade error")
 		return
 	}
-	mu.Lock()
+	clientsMu.Lock()
 	clients[conn] = true
-	mu.Unlock()
+	clientsMu.Unlock()
 
 	defer func() {
-		mu.Lock()
+		clientsMu.Lock()
 		delete(clients, conn)
-		mu.Unlock()
+		clientsMu.Unlock()
 		conn.Close()
 	}()
 
@@ -563,58 +1151,276 @@ func handleWS(c *gin.Context) {
 }
 
 func broadcastEvent(eventType string, data interface{}) {
-	mu.RLock()
-	defer mu.RUnlock()
+	clientsMu.RLock()
+	defer clientsMu.RUnlock()
 	msg := gin.H{"type": eventType, "data": data, "time": time.Now().UTC()}
 	for conn := range clients {
 		conn.WriteJSON(msg)
 	}
 }
 
-// Simulate periodic events
-func simulateEvents() {
-	ticker := time.NewTicker(10 * time.Second)
+func evaluateAlerts() {
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		mu.Lock()
 		updateServiceMetrics()
-		mu.Unlock()
-		
-		events := []string{"alert_firing", "incident_update", "service_status"}
-		event := events[rand.Intn(len(events))]
-		broadcastEvent(event, gin.H{"message": fmt.Sprintf("Simulated %s event", event)})
+
+		// 1. Query all enabled alert rules
+		var rules []model.AlertRule
+		database.DB.Where("enabled = ?", true).Find(&rules)
+		if len(rules) == 0 {
+			continue
+		}
+
+		// 2. Get all online agents with recent metrics
+		var agents []model.AgentInstance
+		database.DB.Where("status = ?", "online").Find(&agents)
+
+		for _, rule := range rules {
+			condition := strings.TrimSpace(rule.Condition)
+			parts := strings.SplitN(condition, " > ", 2)
+			if len(parts) != 2 {
+				logger.Debug().Str("rule", rule.ID).Str("condition", condition).Msg("Rule condition unable to parse, skipping")
+				continue
+			}
+			metricName := strings.TrimSpace(parts[0])
+			thresholdStr := strings.TrimSpace(parts[1])
+
+			// Extract numeric threshold
+			threshold, err := strconv.ParseFloat(strings.TrimSuffix(thresholdStr, "%"), 64)
+			if err != nil {
+				logger.Debug().Str("rule", rule.ID).Str("threshold", thresholdStr).Msg("Rule threshold not numeric, skipping")
+				continue
+			}
+
+			// For percentage thresholds (e.g. 85%), use as-is
+			if strings.HasSuffix(thresholdStr, "%") {
+				// threshold is already the numeric value (e.g. 85)
+			}
+
+			for _, agent := range agents {
+				// Get latest metric for this agent
+				var latest model.MetricSnapshot
+				if err := database.DB.Where("agent_id = ?", agent.ID).Order("reported_at DESC").First(&latest).Error; err != nil {
+					continue
+				}
+
+				// Skip if latest metric is too old (> 2 minutes)
+				if time.Since(latest.ReportedAt) > 2*time.Minute {
+					continue
+				}
+
+				var currentValue float64
+				evaluatable := true
+
+				switch {
+				case strings.HasPrefix(metricName, "cpu_usage"):
+					currentValue = latest.CPUPercent
+				case strings.HasPrefix(metricName, "memory_usage"):
+					currentValue = latest.MemPercent
+				case strings.HasPrefix(metricName, "disk_usage"):
+					currentValue = latest.DiskPercent
+				case strings.HasPrefix(metricName, "p99"):
+					currentValue = latest.Load1
+				default:
+					logger.Debug().Str("rule", rule.ID).Str("metric", metricName).Msg("Rule not yet evaluatable (service-level metric)")
+					evaluatable = false
+				}
+
+				if !evaluatable {
+					continue
+				}
+
+				// Check if already firing
+				var existingAlert model.AlertEvent
+				alreadyFiring := database.DB.Where(
+					"alert_rule_id = ? AND hostname = ? AND status = ?",
+					rule.ID, agent.Hostname, "firing",
+				).First(&existingAlert).Error == nil
+
+				if currentValue > threshold {
+					if !alreadyFiring {
+						// New alert — create AlertEvent
+						msg := fmt.Sprintf("%s: %.1f > %.1f", rule.Name, currentValue, threshold)
+						alertEvent := model.AlertEvent{
+							AlertRuleID: rule.ID,
+							RuleName:    rule.Name,
+							Hostname:    agent.Hostname,
+							Severity:    rule.Severity,
+							Message:     msg,
+							MetricValue: currentValue,
+							Threshold:   threshold,
+							Status:      "firing",
+						}
+						database.DB.Create(&alertEvent)
+
+						// Update rule last_triggered
+						rule.LastTriggered = "just now"
+						database.DB.Model(&rule).Update("last_triggered", rule.LastTriggered)
+
+						// Send notification
+						sendNotificationForRule(rule, currentValue, threshold, agent.Hostname)
+
+						logger.Info().
+							Str("rule", rule.ID).
+							Str("rule_name", rule.Name).
+							Str("hostname", agent.Hostname).
+							Float64("value", currentValue).
+							Float64("threshold", threshold).
+							Msg("Alert fired")
+
+						// Broadcast to WebSocket
+						broadcastEvent("alert_firing", gin.H{
+							"rule_id":  rule.ID,
+							"name":     rule.Name,
+							"hostname": agent.Hostname,
+							"severity": rule.Severity,
+							"value":    currentValue,
+							"threshold": threshold,
+						})
+					}
+				} else {
+					if alreadyFiring {
+						// Resolve
+						now := time.Now()
+						database.DB.Model(&existingAlert).Updates(map[string]interface{}{
+							"status":      "resolved",
+							"resolved_at": now,
+						})
+						logger.Info().
+							Str("rule", rule.ID).
+							Str("hostname", agent.Hostname).
+							Msg("Alert resolved")
+					}
+				}
+			}
+		}
+
+		// Broadcast service_status periodically
+		broadcastEvent("service_status", gin.H{"message": "Status update"})
 	}
 }
 
-func requestLogger() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
-		c.Next()
-		latency := time.Since(start)
-		log.Printf("[%s] %s %s %d %v", c.Request.Method, c.Request.URL.Path, c.ClientIP(), c.Writer.Status(), latency)
+func sendNotificationForRule(rule model.AlertRule, value, threshold float64, hostname string) {
+	var channels []model.NotificationChannel
+	database.DB.Where("enabled = ?", true).Find(&channels)
+	if len(channels) == 0 {
+		return
 	}
+
+	for _, ch := range channels {
+		title, body := notify.FormatAlertMessage(
+			rule.Name,
+			rule.Service,
+			rule.Severity,
+			rule.Condition,
+			fmt.Sprintf("%.1f", threshold),
+			fmt.Sprintf("%.1f", value),
+			time.Now().Format(time.RFC3339),
+		)
+
+		logger.Info().
+			Str("channel", ch.Name).
+			Str("rule", rule.Name).
+			Str("hostname", hostname).
+			Str("severity", rule.Severity).
+			Msg("Alert firing - sending notification")
+
+		notify.SendAlert(ch.ID, rule.Name, rule.Severity, title, body)
+	}
+}
+
+// ==================== Alert Event Handlers ====================
+
+func listAlertEvents(c *gin.Context) {
+	status := c.Query("status")
+	severity := c.Query("severity")
+	hostname := c.Query("hostname")
+
+	db := database.DB.Model(&model.AlertEvent{})
+	if status != "" {
+		db = db.Where("status = ?", status)
+	}
+	if severity != "" {
+		db = db.Where("severity = ?", severity)
+	}
+	if hostname != "" {
+		db = db.Where("hostname = ?", hostname)
+	}
+
+	var events []model.AlertEvent
+	db.Order("created_at DESC").Find(&events)
+
+	response.Success(c, gin.H{"events": events, "total": len(events)})
+}
+
+func getAlertEvent(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid event id")
+		return
+	}
+
+	var event model.AlertEvent
+	if err := database.DB.First(&event, uint(id)).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "alert event not found")
+		return
+	}
+
+	response.Success(c, gin.H{"event": event})
+}
+
+func resolveAlertEvent(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid event id")
+		return
+	}
+
+	var event model.AlertEvent
+	if err := database.DB.First(&event, uint(id)).Error; err != nil {
+		response.Error(c, http.StatusNotFound, response.ErrNotFound, "alert event not found")
+		return
+	}
+
+	if event.Status == "resolved" {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "alert event already resolved")
+		return
+	}
+
+	now := time.Now()
+	database.DB.Model(&event).Updates(map[string]interface{}{
+		"status":      "resolved",
+		"resolved_at": now,
+	})
+
+	response.Success(c, gin.H{"event": event})
 }
 
 func updateServiceMetrics() {
-	for i := range services {
-		if services[i].Status == "healthy" {
+	var svcs []model.Service
+	database.DB.Find(&svcs)
+	for i := range svcs {
+		if svcs[i].Status == "healthy" {
 			rps := rand.Intn(500) + 1000
-			services[i].RPS = fmt.Sprintf("%d", rps)
+			svcs[i].RPS = fmt.Sprintf("%d", rps)
 			p50 := rand.Intn(20) + 5
-			services[i].P50 = fmt.Sprintf("%dms", p50)
+			svcs[i].P50 = fmt.Sprintf("%dms", p50)
 			p99 := p50*3 + rand.Intn(50)
-			services[i].P99 = fmt.Sprintf("%dms", p99)
+			svcs[i].P99 = fmt.Sprintf("%dms", p99)
+			database.DB.Save(&svcs[i])
 		}
 	}
-	
-	for key := range topology {
-		node := topology[key]
-		if node.Status == "healthy" {
+
+	var nodes []model.TopologyNode
+	database.DB.Find(&nodes)
+	for i := range nodes {
+		if nodes[i].Status == "healthy" {
 			rps := rand.Intn(500) + 1000
-			node.RPS = fmt.Sprintf("%d", rps)
+			nodes[i].RPS = fmt.Sprintf("%d", rps)
 			p99 := rand.Intn(100) + 10
-			node.P99 = fmt.Sprintf("%dms", p99)
-			topology[key] = node
+			nodes[i].P99 = fmt.Sprintf("%dms", p99)
+			database.DB.Save(&nodes[i])
 		}
 	}
 }
@@ -627,19 +1433,23 @@ func main() {
 		port = "8800"
 	}
 
-	initData()
+	// Init database
+	db := database.InitDB()
+	// Seed data if tables are empty
+	database.SeedAll(db)
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(requestLogger())
+	r.Use(logger.Middleware())
+	r.Use(logger.GinLogger())
 
 	// CORS
 	r.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
+		ExposeHeaders:    []string{"Content-Length", "X-Request-ID"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
@@ -652,57 +1462,101 @@ func main() {
 
 	// API v1
 	v1 := r.Group("/api/v1")
+	v1.Use(audit.AuditMiddleware())
 	{
-		// Auth
-		v1.POST("/auth/login", login)
+		// Auth (public)
+		authGroup := v1.Group("/auth")
+		{
+			authGroup.POST("/login", login)
 
-		// Dashboard
-		v1.GET("/dashboard/summary", getDashboardSummary)
-		v1.GET("/dashboard/error-rate", getErrorRate)
-		v1.GET("/dashboard/latency", getLatency)
-		v1.GET("/dashboard/top-errors", getTopErrors)
+			// Protected auth routes
+			authProtected := authGroup.Group("")
+			authProtected.Use(auth.AuthRequired())
+			{
+				authProtected.POST("/register", auth.RequireRole("admin"), register)
+				authProtected.GET("/me", getCurrentUser)
+				authProtected.POST("/refresh", refreshToken)
+			}
+		}
 
-		// Incidents
-		v1.GET("/incidents", getIncidents)
-		v1.GET("/incidents/:id", getIncident)
-		v1.POST("/incidents/:id/resolve", resolveIncident)
+		// Agent report (API key auth, not JWT)
+		v1.POST("/agents/report", agentAPIKeyAuth(), agentReport)
 
-		// Services
-		v1.GET("/services", getServices)
-		v1.GET("/services/:name", getService)
+		// Protected routes
+		protected := v1.Group("")
+		protected.Use(auth.AuthRequired())
+		{
+			// Dashboard
+			protected.GET("/dashboard/summary", getDashboardSummary)
+			protected.GET("/dashboard/error-rate", getErrorRate)
+			protected.GET("/dashboard/latency", getLatency)
+			protected.GET("/dashboard/top-errors", getTopErrors)
 
-		// Alert Rules
-		v1.GET("/alert-rules", getAlertRules)
-		v1.PATCH("/alert-rules/:id/toggle", toggleAlertRule)
+			// Incidents
+			protected.GET("/incidents", getIncidents)
+			protected.GET("/incidents/:id", getIncident)
+			protected.POST("/incidents/:id/resolve", auth.RequireRole("admin", "editor"), resolveIncident)
 
-		// Metrics
-		v1.GET("/metrics/query", getMetricsQuery)
-		v1.GET("/metrics/names", getMetricsNames)
+			// Services
+			protected.GET("/services", getServices)
+			protected.GET("/services/:name", getService)
 
-		// Topology
-		v1.GET("/topology", getTopology)
-		v1.GET("/topology/:serviceId/rca", getRCA)
+			// Alert Rules
+			protected.GET("/alert-rules", getAlertRules)
+			protected.PATCH("/alert-rules/:id/toggle", auth.RequireRole("admin", "editor"), toggleAlertRule)
 
-		// Insights
-		v1.GET("/insights", getInsights)
+			// Metrics
+			protected.GET("/metrics/query", getMetricsQuery)
+			protected.GET("/metrics/names", getMetricsNames)
 
-		// Integrations
-		v1.GET("/integrations", getIntegrations)
+			// Agents
+			protected.GET("/agents", auth.RequireRole("admin"), listAgents)
+			protected.GET("/agents/:hostname", auth.RequireRole("admin"), getAgent)
+			protected.GET("/agents/:hostname/metrics", auth.RequireRole("admin"), getAgentMetrics)
 
-		// Team
-		v1.GET("/team", getTeam)
+			// Alert Events
+			protected.GET("/alerts/events", listAlertEvents)
+			protected.GET("/alerts/events/:id", getAlertEvent)
+			protected.POST("/alerts/events/:id/resolve", auth.RequireRole("admin", "editor"), resolveAlertEvent)
+
+			// Topology
+			protected.GET("/topology", getTopology)
+			protected.GET("/topology/:serviceId/rca", getRCA)
+
+			// Insights
+			protected.GET("/insights", getInsights)
+
+			// Integrations
+			protected.GET("/integrations", getIntegrations)
+
+			// Team
+			protected.GET("/team", auth.RequireRole("admin"), getTeam)
+
+			// Audit Logs
+			protected.GET("/audit-logs", auth.RequireRole("admin"), getAuditLogs)
+			protected.GET("/audit-logs/stats", getAuditStats)
+
+			// Notifications
+			protected.GET("/notifications/channels", listNotificationChannels)
+			protected.POST("/notifications/channels", auth.RequireRole("admin"), createNotificationChannel)
+			protected.PUT("/notifications/channels/:id", auth.RequireRole("admin"), updateNotificationChannel)
+			protected.DELETE("/notifications/channels/:id", auth.RequireRole("admin"), deleteNotificationChannel)
+			protected.GET("/notifications/history", getNotificationHistory)
+			protected.POST("/notifications/test/:channelId", testNotification)
+		}
 	}
 
-	// Start event simulator
-	go simulateEvents()
+	// Start alert evaluator
+	go evaluateAlerts()
 
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: r,
 	}
 
-	log.Printf("Opsight API starting on :%s", port)
+	logger.Info().Str("port", port).Msg("Opsight API starting")
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Server error: %v", err)
+		logger.Error().Err(err).Msg("Server error")
+		os.Exit(1)
 	}
 }

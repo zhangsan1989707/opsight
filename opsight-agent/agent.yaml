@@ -1,0 +1,14 @@
+server:
+  url: "http://localhost:80"
+  api_key: "your-agent-api-key"
+
+collector:
+  interval_seconds: 10
+  cpu: true
+  memory: true
+  disk: true
+  network: true
+  load: true
+
+logging:
+  level: "info"
