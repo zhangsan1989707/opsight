@@ -2,18 +2,29 @@
 
 import { useEffect, useState } from 'react';
 import { fetchAPI } from '../lib/api';
+import { LoadingState, EmptyState } from '../components/UI';
 
 export default function Metrics() {
   const [names, setNames] = useState<string[]>([]);
   const [selected, setSelected] = useState('cpu_usage');
   const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchAPI('/metrics/names').then(d => setNames(d.metrics || [])).catch(console.error); }, []);
-  useEffect(() => { fetchAPI(`/metrics/query?metric=${selected}`).then(setData).catch(console.error); }, [selected]);
+  useEffect(() => {
+    fetchAPI('/metrics/names').then(d => setNames(d.metrics || [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchAPI(`/metrics/query?metric=${selected}`)
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [selected]);
 
   return (
     <>
-      <div><h1 className="text-xl font-semibold text-white">Metrics</h1><p className="text-sm text-zinc-500 mt-0.5">System and service metrics</p></div>
+      <div><h1 className="text-xl font-semibold text-white">指标监控</h1><p className="text-sm text-zinc-500 mt-0.5">系统与服务指标查询</p></div>
       <div className="flex flex-wrap gap-2">
         {names.map(n => (
           <button key={n} onClick={() => setSelected(n)}
@@ -24,19 +35,19 @@ export default function Metrics() {
       </div>
       <div className="bg-surface-50 border border-white/5 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
-          <div><h3 className="text-sm font-medium text-zinc-200">{selected}</h3><p className="font-mono text-xs text-zinc-600 mt-0.5">Last 24 hours</p></div>
+          <div><h3 className="text-sm font-medium text-zinc-200">{selected}</h3><p className="font-mono text-xs text-zinc-600 mt-0.5">最近 24 小时</p></div>
         </div>
         <div className="relative h-64">
-          <MetricChart data={data} />
+          {loading ? <LoadingState text="加载中…" /> : <MetricChart data={data} />}
         </div>
       </div>
-      {data?.points && (
+      {data?.points?.length > 0 ? (
         <div className="bg-surface-50 border border-white/5 rounded-xl p-5">
-          <h3 className="text-sm font-medium text-zinc-200 mb-3">Data Points</h3>
+          <h3 className="text-sm font-medium text-zinc-200 mb-3">数据点</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-left border-b border-white/5">
-                {['Time', 'Value', 'Avg', 'P95', 'P99'].map(h => <th key={h} className="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">{h}</th>)}
+                {['时间', '值', '平均', 'P95', 'P99'].map(h => <th key={h} className="font-mono text-[10px] uppercase tracking-wider text-zinc-600 px-4 py-2.5">{h}</th>)}
               </tr></thead>
               <tbody>
                 {data.points.slice(-12).map((p: any, i: number) => (
@@ -52,7 +63,7 @@ export default function Metrics() {
             </table>
           </div>
         </div>
-      )}
+      ) : !loading ? <EmptyState title="暂无数据" description="请稍后再试或检查 Agent 是否正常上报" /> : null}
     </>
   );
 }
@@ -67,8 +78,8 @@ function MetricChart({ data }: { data: any }) {
     });
   }, [data]);
 
-  if (!data) return <div className="flex items-center justify-center h-full text-zinc-600 text-xs">Select a metric</div>;
-  if (!ChartComp) return <div className="flex items-center justify-center h-full text-zinc-600 text-xs">Loading chart...</div>;
+  if (!data) return <div className="flex items-center justify-center h-full text-zinc-600 text-xs">选择一个指标</div>;
+  if (!ChartComp) return <div className="flex items-center justify-center h-full text-zinc-600 text-xs">加载图表中…</div>;
 
   const labels = data.points.map((p: any) => p.timestamp);
   return (

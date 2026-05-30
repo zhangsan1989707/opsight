@@ -55,9 +55,11 @@ export default function LoginPage() {
               <input
                 id="email"
                 type="email"
+                name="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="请输入邮箱"
+                placeholder="请输入邮箱…"
                 required
                 className="w-full px-3.5 py-2.5 bg-[#09090b] border border-white/10 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-[#0ea5e9]/50 focus:ring-1 focus:ring-[#0ea5e9]/25 transition-colors"
               />
@@ -70,9 +72,11 @@ export default function LoginPage() {
               <input
                 id="password"
                 type="password"
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="请输入密码"
+                placeholder="请输入密码…"
                 required
                 className="w-full px-3.5 py-2.5 bg-[#09090b] border border-white/10 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-[#0ea5e9]/50 focus:ring-1 focus:ring-[#0ea5e9]/25 transition-colors"
               />
@@ -95,7 +99,7 @@ export default function LoginPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span>登录中...</span>
+                  <span>登录中…</span>
                 </>
               ) : (
                 '登录'

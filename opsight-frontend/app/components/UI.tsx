@@ -26,7 +26,7 @@ export function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   );
 }
 
-export function LoadingState({ text = 'Loading...' }: { text?: string }) {
+export function LoadingState({ text = 'Loading…' }: { text?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
       <LoadingSpinner />

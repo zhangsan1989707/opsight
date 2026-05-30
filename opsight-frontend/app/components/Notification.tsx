@@ -59,7 +59,7 @@ function NotificationContainer() {
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full pointer-events-none">
+    <div aria-live="polite" className="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full pointer-events-none">
       {notifications.map(notif => {
         const style = typeStyles[notif.type];
         return (
@@ -77,9 +77,10 @@ function NotificationContainer() {
               </div>
               <button
                 onClick={() => removeNotification(notif.id)}
-                className="text-zinc-600 hover:text-zinc-400 transition-colors flex-shrink-0"
+                aria-label="关闭通知"
+                className="text-zinc-600 hover:text-zinc-400 transition-colors flex-shrink-0 focus-visible:ring-1 focus-visible:ring-accent/50 focus-visible:outline-none rounded"
               >
-                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 12 12">
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 12 12" aria-hidden="true">
                   <path d="M2 2l8 8M10 2l-8 8" />
                 </svg>
               </button>

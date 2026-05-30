@@ -4,44 +4,63 @@ import { useEffect, useState } from 'react';
 import { fetchAPI } from '../lib/api';
 import { Badge, LoadingState, EmptyState, Card } from '../components/UI';
 import { useNotification } from '../components/Notification';
+import { useWS } from '../context/WSContext';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
   const [incidents, setIncidents] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [topErrors, setTopErrors] = useState<any[]>([]);
+  const [aiInsights, setAiInsights] = useState<any[]>([]);
+  const [errorRate, setErrorRate] = useState<{ labels: string[]; values: number[] }>({ labels: [], values: [] });
   const [loading, setLoading] = useState(true);
+  const { lastEvent } = useWS();
   const { addNotification } = useNotification();
 
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetchAPI('/dashboard/summary').catch(e => { addNotification('error', 'Failed to load summary', e.message); return null; }),
-      fetchAPI('/incidents?limit=8').catch(e => { addNotification('error', 'Failed to load incidents', e.message); return { incidents: [] }; }),
-      fetchAPI('/services').catch(e => { addNotification('error', 'Failed to load services', e.message); return { services: [] }; }),
-      fetchAPI('/dashboard/top-errors').catch(e => { addNotification('error', 'Failed to load errors', e.message); return { errors: [] }; }),
-    ]).then(([sum, inc, svc, err]) => {
+      fetchAPI('/dashboard/summary').catch(e => { addNotification('error', '加载失败', e.message); return null; }),
+      fetchAPI('/incidents?limit=8').catch(e => { addNotification('error', '加载失败', e.message); return { incidents: [] }; }),
+      fetchAPI('/services').catch(e => { addNotification('error', '加载失败', e.message); return { services: [] }; }),
+      fetchAPI('/dashboard/top-errors').catch(e => { addNotification('error', '加载失败', e.message); return { errors: [] }; }),
+      fetchAPI('/insights?type=root-cause').catch(() => ({ insights: [] })),
+      fetchAPI('/dashboard/error-rate').catch(() => ({ labels: [], values: [] })),
+    ]).then(([sum, inc, svc, err, ins, rate]) => {
       if (sum) setSummary(sum);
       setIncidents(inc.incidents || []);
       setServices(svc.services || []);
       setTopErrors(err.errors || []);
+      setAiInsights(ins.insights || []);
+      if (rate.labels && rate.values) setErrorRate(rate);
       setLoading(false);
     });
   }, []);
 
-  const aiInsights = [
-    { type: 'root-cause', title: 'Root cause identified', body: 'auth-svc v2.4.1 disabled session-cache eviction. Memory grows 12 MB/min.', time: '2 min ago', color: '#ef4444' },
-    { type: 'pattern', title: 'Correlated pattern', body: 'Payment 5xx errors correlate with Redis latency spike.', time: '8 min ago', color: '#f59e0b' },
-    { type: 'prediction', title: 'Capacity forecast', body: 'us-east-1 node 7 disk will reach 95% in ~6 hours.', time: '1 hr ago', color: '#0ea5e9' },
-    { type: 'resolved', title: 'Auto-remediated', body: 'Kafka consumer lag resolved by scaling consumer group.', time: '2 hr ago', color: '#10b981' },
-  ];
+  // React to WebSocket events
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (lastEvent.type === 'alert_firing') {
+      addNotification('error', `告警触发: ${lastEvent.data?.name}`, `${lastEvent.data?.hostname} - ${lastEvent.data?.severity}`);
+    }
+    if (lastEvent.type === 'service_status') {
+      fetchAPI('/services').then(d => setServices(d.services || [])).catch(() => {});
+    }
+  }, [lastEvent]);
+
+  const insightColors: Record<string, string> = {
+    'root-cause': '#ef4444',
+    patterns: '#f59e0b',
+    predictions: '#0ea5e9',
+    remediation: '#10b981',
+  };
 
   const healthyCount = services.filter(s => s.status === 'healthy').length;
   const degradedCount = services.filter(s => s.status === 'degraded').length;
   const downCount = services.filter(s => s.status === 'down').length;
 
   if (loading) {
-    return <LoadingState text="Loading dashboard..." />;
+    return <LoadingState text="加载仪表盘…" />;
   }
 
   return (
@@ -50,15 +69,15 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-surface-50 border border-white/5 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="font-mono text-xs text-zinc-500">Active Incidents</span>
+            <span className="font-mono text-xs text-zinc-500">活跃事件</span>
             <Badge variant="critical"><span className="w-1.5 h-1.5 rounded-full bg-danger inline-block" />Live</Badge>
           </div>
           <p className="text-3xl font-bold text-white tabular-nums">{summary?.active_incidents ?? '-'}</p>
-          <p className="text-xs text-zinc-600 mt-2"><span className="text-danger">+1</span> from last hour</p>
+          <p className="text-xs text-zinc-600 mt-2"><span className="text-danger">+1</span> 较上小时</p>
         </div>
         <div className="bg-surface-50 border border-white/5 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="font-mono text-xs text-zinc-500">Avg MTTR</span>
+            <span className="font-mono text-xs text-zinc-500">平均恢复时间</span>
             <Badge variant="resolved">-62%</Badge>
           </div>
           <p className="text-3xl font-bold text-white tabular-nums">{summary?.mttr_minutes ?? '-'}<span className="text-base font-normal text-zinc-500 ml-1">min</span></p>
@@ -66,19 +85,19 @@ export default function Dashboard() {
         </div>
         <div className="bg-surface-50 border border-white/5 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="font-mono text-xs text-zinc-500">Services Healthy</span>
+            <span className="font-mono text-xs text-zinc-500">服务健康</span>
             <Badge variant="info">{summary ? ((summary.services_healthy / summary.services_total) * 100).toFixed(1) + '%' : '-'}</Badge>
           </div>
           <p className="text-3xl font-bold text-white tabular-nums">{summary?.services_healthy ?? '-'}<span className="text-base font-normal text-zinc-500">/{summary?.services_total ?? '-'}</span></p>
-          <p className="text-xs text-zinc-600 mt-2">across 12 clusters</p>
+          <p className="text-xs text-zinc-600 mt-2">集群总览</p>
         </div>
         <div className="bg-surface-50 border border-white/5 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="font-mono text-xs text-zinc-500">AI Alerts Today</span>
-            <Badge variant="muted">Auto-resolved 73%</Badge>
+            <span className="font-mono text-xs text-zinc-500">今日 AI 告警</span>
+            <Badge variant="muted">自动修复</Badge>
           </div>
           <p className="text-3xl font-bold text-white tabular-nums">{summary?.ai_alerts_today ?? '-'}</p>
-          <p className="text-xs text-zinc-600 mt-2"><span className="text-success">{summary?.ai_auto_resolved ?? '-'} auto</span> / <span className="text-warn">13 manual</span></p>
+          <p className="text-xs text-zinc-600 mt-2"><span className="text-success">{summary?.ai_auto_resolved ?? '-'} 自动</span> / <span className="text-warn">手动</span></p>
         </div>
       </div>
 
@@ -86,19 +105,19 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-surface-50 border border-white/5 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <div><h3 className="text-sm font-medium text-zinc-200">Error Rate</h3><p className="font-mono text-xs text-zinc-600 mt-0.5">Last 24 hours</p></div>
+            <div><h3 className="text-sm font-medium text-zinc-200">错误率</h3><p className="font-mono text-xs text-zinc-600 mt-0.5">最近 24 小时</p></div>
             <div className="flex gap-1">
-              <button className="font-mono text-xs px-2.5 py-1 rounded-md bg-accent/10 text-accent">24h</button>
-              <button className="font-mono text-xs px-2.5 py-1 rounded-md text-zinc-500">7d</button>
-              <button className="font-mono text-xs px-2.5 py-1 rounded-md text-zinc-500">30d</button>
+              <button className="font-mono text-xs px-2.5 py-1 rounded-md bg-accent/10 text-accent focus-visible:ring-1 focus-visible:ring-accent/50 focus-visible:outline-none">24h</button>
+              <button className="font-mono text-xs px-2.5 py-1 rounded-md text-zinc-500 focus-visible:ring-1 focus-visible:ring-accent/50 focus-visible:outline-none">7d</button>
+              <button className="font-mono text-xs px-2.5 py-1 rounded-md text-zinc-500 focus-visible:ring-1 focus-visible:ring-accent/50 focus-visible:outline-none">30d</button>
             </div>
           </div>
           <div className="relative h-52">
-            <ErrorRateChart />
+            <ErrorRateChart labels={errorRate.labels} values={errorRate.values} />
           </div>
         </div>
         <div className="bg-surface-50 border border-white/5 rounded-xl p-5">
-          <h3 className="text-sm font-medium text-zinc-200 mb-4">Service Health</h3>
+          <h3 className="text-sm font-medium text-zinc-200 mb-4">服务健康度</h3>
           <div className="flex justify-center mb-4">
             <div className="relative w-36 h-36">
               <HealthDonut healthy={healthyCount} degraded={degradedCount} down={downCount} />
@@ -123,8 +142,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-surface-50 border border-white/5 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-white/5">
-            <h3 className="text-sm font-medium text-zinc-200">Recent Incidents</h3>
-            <a href="/incidents" className="text-xs text-accent hover:text-accent/80">View all</a>
+            <h3 className="text-sm font-medium text-zinc-200">最近事件</h3>
+            <a href="/incidents" className="text-xs text-accent hover:text-accent/80">查看全部</a>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -151,19 +170,23 @@ export default function Dashboard() {
         <div className="bg-surface-50 border border-white/5 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <svg width="16" height="16" fill="none" stroke="#0ea5e9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 1L1 9l4 4 8-8-4-4z"/><path d="M5 11l-2 5 5-2"/></svg>
-            <h3 className="text-sm font-medium text-zinc-200">AI Insights</h3>
+            <h3 className="text-sm font-medium text-zinc-200">AI 洞察</h3>
           </div>
           <div className="space-y-4">
-            {aiInsights.map((ins, i) => (
-              <div key={i} className="border-l-2 pl-3" style={{ borderColor: ins.color + '30' }}>
+            {aiInsights.length === 0 && <p className="text-xs text-zinc-600">No insights available</p>}
+            {aiInsights.map((ins: any, i: number) => {
+              const color = insightColors[ins.type] || '#0ea5e9';
+              return (
+              <div key={i} className="border-l-2 pl-3" style={{ borderColor: color + '30' }}>
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ins.color }} />
-                  <span className="text-xs font-medium" style={{ color: ins.color }}>{ins.title}</span>
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="text-xs font-medium" style={{ color: color }}>{ins.title}</span>
                 </div>
                 <p className="text-xs text-zinc-400 leading-relaxed mb-1">{ins.body}</p>
-                <span className="font-mono text-[10px] text-zinc-600">{ins.time}</span>
+                {ins.service && <span className="font-mono text-[10px] text-zinc-600">{ins.service}</span>}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -171,7 +194,7 @@ export default function Dashboard() {
       {/* Service Grid */}
       <div className="bg-surface-50 border border-white/5 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-zinc-200">Service Overview</h3>
+          <h3 className="text-sm font-medium text-zinc-200">服务总览</h3>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-success" /><span className="font-mono text-xs text-zinc-500">OK</span></div>
             <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-warn" /><span className="font-mono text-xs text-zinc-500">Degraded</span></div>
@@ -200,8 +223,8 @@ export default function Dashboard() {
 
       {/* Top Errors */}
       <div className="bg-surface-50 border border-white/5 rounded-xl p-5">
-        <h3 className="text-sm font-medium text-zinc-200 mb-1">Top Errors</h3>
-        <p className="font-mono text-xs text-zinc-600 mb-4">Most frequent in last 24h</p>
+        <h3 className="text-sm font-medium text-zinc-200 mb-1">高频错误</h3>
+        <p className="font-mono text-xs text-zinc-600 mb-4">最近 24 小时最频繁错误</p>
         <div className="space-y-3">
           {topErrors.map((err: any, i: number) => {
             const maxCount = topErrors[0]?.count || 1;
@@ -231,7 +254,7 @@ export default function Dashboard() {
 }
 
 // Chart components (lazy loaded to avoid SSR issues)
-function ErrorRateChart() {
+function ErrorRateChart({ labels, values }: { labels: string[]; values: number[] }) {
   const [ChartComp, setChartComp] = useState<any>(null);
   useEffect(() => {
     Promise.all([import('chart.js'), import('react-chartjs-2')]).then(([chartjs, reactChart]) => {
@@ -240,17 +263,14 @@ function ErrorRateChart() {
     });
   }, []);
 
-  if (!ChartComp) return <div className="flex items-center justify-center h-full text-zinc-600 text-xs">Loading chart...</div>;
-
-  const labels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
-  const data = [0.12, 0.10, 0.08, 0.09, 0.11, 0.15, 0.18, 0.22, 0.31, 0.45, 0.38, 0.29, 0.24, 0.20, 0.18, 0.15, 0.21, 0.33, 0.41, 0.52, 0.38, 0.28, 0.19, 0.14];
+  if (!ChartComp) return <div className="flex items-center justify-center h-full text-zinc-600 text-xs">加载图表中…</div>;
 
   return (
     <ChartComp
       data={{
         labels,
         datasets: [{
-          data,
+          data: values,
           borderColor: '#0ea5e9',
           borderWidth: 2,
           backgroundColor: 'rgba(14, 165, 233, 0.1)',

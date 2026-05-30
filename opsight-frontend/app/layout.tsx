@@ -6,23 +6,26 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { NotificationProvider } from './components/Notification';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { WSProvider, useWS } from './context/WSContext';
 
 const navItems = [
-  { group: 'Overview', items: [
-    { href: '/dashboard', label: 'Dashboard', icon: 'rect' },
-    { href: '/metrics', label: 'Metrics', icon: 'chart' },
-    { href: '/incidents', label: 'Incidents', icon: 'chat' },
-    { href: '/services', label: 'Services', icon: 'circle' },
+  { group: '概览', items: [
+    { href: '/dashboard', label: '仪表盘', icon: 'rect' },
+    { href: '/metrics', label: '指标监控', icon: 'chart' },
+    { href: '/incidents', label: '事件管理', icon: 'chat' },
+    { href: '/services', label: '服务列表', icon: 'circle' },
   ]},
-  { group: 'Intelligence', items: [
-    { href: '/insights', label: 'AI Insights', icon: 'ai' },
-    { href: '/topology', label: 'Topology', icon: 'grid' },
-    { href: '/alerts', label: 'Alert Rules', icon: 'bell' },
+  { group: '智能分析', items: [
+    { href: '/insights', label: 'AI 洞察', icon: 'ai' },
+    { href: '/topology', label: '服务拓扑', icon: 'grid' },
+    { href: '/alerts', label: '告警规则', icon: 'bell' },
   ]},
-  { group: 'Settings', items: [
-    { href: '/integrations', label: 'Integrations', icon: 'link' },
-    { href: '/team', label: 'Team', icon: 'users' },
+  { group: '设置', items: [
+    { href: '/notifications', label: '通知管理', icon: 'bell' },
+    { href: '/integrations', label: '集成管理', icon: 'link' },
+    { href: '/team', label: '团队管理', icon: 'users' },
   ]},
 ];
 
@@ -61,12 +64,12 @@ function UserSection() {
           href="/login"
           className="flex items-center justify-center gap-2 w-full py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-lg transition-colors"
         >
-          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M9 1H3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7"/>
             <path d="M9 1h6v6"/>
             <path d="M5 11l6-6"/>
           </svg>
-          Sign In
+          登录
         </Link>
       </div>
     );
@@ -84,10 +87,10 @@ function UserSection() {
         </div>
         <button
           onClick={logout}
-          className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-white/[0.05] transition-colors"
-          title="退出登录"
+          className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-white/[0.05] transition-colors focus-visible:ring-1 focus-visible:ring-accent/50 focus-visible:outline-none"
+          aria-label="退出登录"
         >
-          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M6 2H3a2 2 0 00-2 2v8a2 2 0 002 2h3"/>
             <path d="M14 8H6"/>
             <path d="M11 5l3 3-3 3"/>
@@ -95,6 +98,16 @@ function UserSection() {
         </button>
       </div>
     </div>
+  );
+}
+
+function WSIndicator() {
+  const { connected } = useWS();
+  return (
+    <>
+      <div className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-success' : 'bg-zinc-600'}`} style={connected ? { animation: 'pulse-live 2s ease-in-out infinite' } : undefined} />
+      <span className="font-mono text-xs text-zinc-500">{connected ? '实时' : '离线'}</span>
+    </>
   );
 }
 
@@ -145,13 +158,13 @@ function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Overlay */}
-      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} role="button" aria-label="关闭菜单" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setSidebarOpen(false)} />}
 
       {/* Main */}
       <div className="lg:ml-60 min-h-screen flex flex-col">
         <header className="sticky top-0 z-40 h-14 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center px-4 sm:px-6 gap-4">
-          <button className="lg:hidden text-zinc-400 hover:text-white" onClick={() => setSidebarOpen(true)}>
-            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <button className="lg:hidden text-zinc-400 hover:text-white focus-visible:ring-1 focus-visible:ring-accent/50 focus-visible:outline-none rounded" onClick={() => setSidebarOpen(true)} aria-label="打开菜单">
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
             </svg>
           </button>
@@ -162,11 +175,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-success" style={{ animation: 'pulse-live 2s ease-in-out infinite' }} />
-            <span className="font-mono text-xs text-zinc-500">Live</span>
+            <WSIndicator />
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6 space-y-6">{children}</main>
+        <main id="main-content" className="flex-1 p-4 sm:p-6 space-y-6"><ProtectedRoute>{children}</ProtectedRoute></main>
       </div>
     </>
   );
@@ -174,13 +186,16 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN" className="dark">
-      <head><title>Opsight</title><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+    <html lang="zh-CN" className="dark" style={{ colorScheme: 'dark' }}>
+      <head><title>Opsight</title><meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="theme-color" content="#09090b" /></head>
       <body className="dark">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-accent focus:text-white focus:rounded-lg focus:outline-none">跳转到主要内容</a>
         <NotificationProvider>
           <ErrorBoundary>
             <AuthProvider>
-              <AppShell>{children}</AppShell>
+              <WSProvider>
+                <AppShell>{children}</AppShell>
+              </WSProvider>
             </AuthProvider>
           </ErrorBoundary>
         </NotificationProvider>
