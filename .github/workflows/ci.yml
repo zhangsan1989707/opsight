@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (Go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: |
+          cd opsight-backend && go mod download
+          cd ../opsight-agent && go mod download
+
+      - name: Build backend
+        run: cd opsight-backend && go build -v ./...
+
+      - name: Build agent
+        run: cd opsight-agent && go build -v ./...
+
+      - name: Vet
+        run: cd opsight-backend && go vet ./...
+
+      - name: Test
+        run: cd opsight-backend && go test -v -race -count=1 ./...
+
+  frontend:
+    name: Frontend (Node.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: opsight-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd opsight-frontend && npm ci
+
+      - name: Type check
+        run: cd opsight-frontend && npx tsc --noEmit
+
+      - name: Build
+        run: cd opsight-frontend && npm run build
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        run: |
+          docker build -t opsight-api:test -f opsight-backend/Dockerfile .
+
+      - name: Build frontend image
+        run: |
+          docker build -t opsight-frontend:test -f opsight-frontend/Dockerfile .

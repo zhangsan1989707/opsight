@@ -8,6 +8,7 @@ import (
 
 	"opsight-backend/internal/database"
 	"opsight-backend/internal/handler"
+	"opsight-backend/internal/metrics"
 	"opsight-backend/internal/model"
 	"opsight-backend/internal/notify"
 	"opsight-backend/pkg/logger"
@@ -123,6 +124,7 @@ func evaluateRules() {
 						"value":     currentValue,
 						"threshold": threshold,
 					})
+					metrics.RecordAlertFired()
 				}
 			} else {
 				if alreadyFiring {
@@ -135,6 +137,7 @@ func evaluateRules() {
 						Str("rule", rule.ID).
 						Str("hostname", agent.Hostname).
 						Msg("Alert resolved")
+					metrics.RecordAlertResolved()
 				}
 			}
 		}

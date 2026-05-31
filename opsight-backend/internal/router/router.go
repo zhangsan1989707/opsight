@@ -7,6 +7,7 @@ import (
 	"opsight-backend/internal/audit"
 	"opsight-backend/internal/auth"
 	"opsight-backend/internal/handler"
+	"opsight-backend/internal/metrics"
 	"opsight-backend/pkg/logger"
 	"opsight-backend/pkg/middleware"
 
@@ -41,6 +42,10 @@ func SetupCORS(r *gin.Engine, allowedOrigins []string) {
 
 func SetupRoutes(r *gin.Engine, allowedOrigins []string) {
 	r.GET("/healthz", handler.HealthCheck)
+	r.GET("/metrics", func(c *gin.Context) {
+		c.Header("Content-Type", "text/plain")
+		c.String(200, metrics.PrometheusMetrics())
+	})
 
 	handler.SetWSOriginCheck(func(req *http.Request) bool {
 		origin := req.Header.Get("Origin")
@@ -55,6 +60,7 @@ func SetupRoutes(r *gin.Engine, allowedOrigins []string) {
 	r.GET("/api/v1/ws", handler.HandleWS)
 
 	v1 := r.Group("/api/v1")
+	v1.Use(metrics.Handler())
 	v1.Use(audit.AuditMiddleware())
 
 	setupAuthRoutes(v1)

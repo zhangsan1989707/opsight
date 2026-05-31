@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"opsight-backend/internal/database"
+	"opsight-backend/internal/metrics"
 	"opsight-backend/internal/model"
 	"opsight-backend/pkg/response"
 
@@ -122,6 +123,13 @@ func AgentReport(c *gin.Context) {
 		ReportedAt:   now,
 	}
 	database.DB.Create(&snapshot)
+
+	var totalAgents int64
+	database.DB.Model(&model.AgentInstance{}).Count(&totalAgents)
+	var onlineAgents int64
+	database.DB.Model(&model.AgentInstance{}).Where("status = ?", "online").Count(&onlineAgents)
+	metrics.SetAgentsTotal(int(totalAgents))
+	metrics.SetAgentsOnline(int(onlineAgents))
 
 	response.Success(c, gin.H{"message": "success"})
 }

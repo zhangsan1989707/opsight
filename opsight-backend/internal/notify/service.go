@@ -13,58 +13,93 @@ import (
 	"opsight-backend/internal/database"
 	"opsight-backend/internal/model"
 	"opsight-backend/pkg/logger"
+
+	"github.com/rs/zerolog"
 )
 
-// SendAlert sends an alert notification via the specified channel asynchronously.
 func SendAlert(channelID uint, ruleName string, severity string, title string, content string) {
 	go func() {
-		var ch model.NotificationChannel
-		if err := database.DB.First(&ch, channelID).Error; err != nil {
-			logger.Error().Err(err).Uint("channel_id", channelID).Msg("Failed to find notification channel")
-			return
-		}
-
-		if !ch.Enabled {
-			logger.Debug().Str("channel", ch.Name).Msg("Notification channel disabled, skipping")
-			return
-		}
-
-		var sendErr error
-		switch ch.Type {
-		case "email":
-			sendErr = SendEmail(ch, title, content)
-		case "wechat_work":
-			sendErr = SendWeChatWork(ch, title, content)
-		default:
-			sendErr = fmt.Errorf("unsupported channel type: %s", ch.Type)
-		}
-
-		status := "success"
-		errStr := ""
-		if sendErr != nil {
-			status = "failed"
-			errStr = sendErr.Error()
-			logger.Error().Err(sendErr).Str("channel", ch.Name).Str("rule", ruleName).Msg("Notification send failed")
-		} else {
-			logger.Info().Str("channel", ch.Name).Str("rule", ruleName).Str("severity", severity).Msg("Notification sent successfully")
-		}
-
-		database.DB.Create(&model.NotificationHistory{
-			ChannelID:   ch.ID,
-			ChannelName: ch.Name,
-			AlertRuleID: ruleName,
-			Severity:    severity,
-			Title:       title,
-			Content:     content,
-			Status:      status,
-			Error:       errStr,
-		})
+		err := sendAlertWithRetry(channelID, ruleName, severity, title, content)
+		recordNotification(channelID, ruleName, severity, title, content, err)
 	}()
 }
 
-// SendEmail sends an email via SMTP.
-func SendEmail(ch model.NotificationChannel, subject, body string) error {
-	// Parse channel config for recipients
+func sendAlertWithRetry(channelID uint, ruleName string, severity string, title string, content string) error {
+	var ch model.NotificationChannel
+	if err := database.DB.First(&ch, channelID).Error; err != nil {
+		return fmt.Errorf("channel not found: %w", err)
+	}
+
+	if !ch.Enabled {
+		logger.Debug().Str("channel", ch.Name).Msg("Notification channel disabled, skipping")
+		return nil
+	}
+
+	var lastErr error
+	maxRetries := 3
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		lastErr = sendByChannel(ch, title, content)
+		if lastErr == nil {
+			logger.Info().
+				Str("channel", ch.Name).
+				Str("rule", ruleName).
+				Str("severity", severity).
+				Int("attempt", attempt).
+				Msg("Notification sent successfully")
+			return nil
+		}
+
+		logger.Warn().
+			Err(lastErr).
+			Str("channel", ch.Name).
+			Str("rule", ruleName).
+			Int("attempt", attempt).
+			Int("max_retries", maxRetries).
+			Msg("Notification send failed, retrying with backoff")
+
+		if attempt < maxRetries {
+			backoff := time.Duration(1<<uint(attempt-1)) * time.Second
+			time.Sleep(backoff)
+		}
+	}
+
+	return fmt.Errorf("all %d retries exhausted: %w", maxRetries, lastErr)
+}
+
+func sendByChannel(ch model.NotificationChannel, title, content string) error {
+	switch ch.Type {
+	case "email":
+		return sendEmailWithTimeout(ch, title, content)
+	case "wechat_work":
+		return sendWeChatWorkWithTimeout(ch, title, content)
+	default:
+		return fmt.Errorf("unsupported channel type: %s", ch.Type)
+	}
+}
+
+func recordNotification(channelID uint, ruleName string, severity string, title string, content string, sendErr error) {
+	status := "success"
+	errStr := ""
+	if sendErr != nil {
+		status = "failed"
+		errStr = sendErr.Error()
+		logger.Error().Err(sendErr).Str("channel_id", fmt.Sprintf("%d", channelID)).Str("rule", ruleName).Msg("Notification send failed after all retries")
+	}
+
+	database.DB.Create(&model.NotificationHistory{
+		ChannelID:   channelID,
+		ChannelName: "",
+		AlertRuleID: ruleName,
+		Severity:    severity,
+		Title:       title,
+		Content:     content,
+		Status:      status,
+		Error:       errStr,
+	})
+}
+
+func sendEmailWithTimeout(ch model.NotificationChannel, subject, body string) error {
 	var cfg struct {
 		Recipients []string `json:"recipients"`
 	}
@@ -85,12 +120,12 @@ func SendEmail(ch model.NotificationChannel, subject, body string) error {
 
 	addr := smtpHost + ":" + smtpPort
 	auth := smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
-
 	to := strings.Join(cfg.Recipients, ", ")
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
 		smtpFrom, to, subject, body)
 
-	if err := smtp.SendMail(addr, auth, smtpFrom, cfg.Recipients, []byte(msg)); err != nil {
+	err := smtp.SendMail(addr, auth, smtpFrom, cfg.Recipients, []byte(msg))
+	if err != nil {
 		return fmt.Errorf("SMTP send failed: %w", err)
 	}
 
@@ -98,8 +133,7 @@ func SendEmail(ch model.NotificationChannel, subject, body string) error {
 	return nil
 }
 
-// SendWeChatWork sends a markdown message via WeChat Work webhook.
-func SendWeChatWork(ch model.NotificationChannel, title, content string) error {
+func sendWeChatWorkWithTimeout(ch model.NotificationChannel, title, content string) error {
 	webhookURL := os.Getenv("WECHAT_WEBHOOK_URL")
 	if webhookURL == "" {
 		var cfg struct {
@@ -113,7 +147,6 @@ func SendWeChatWork(ch model.NotificationChannel, title, content string) error {
 		return fmt.Errorf("WeChat webhook URL not configured")
 	}
 
-	// WeChat Work webhook expects: {"msgtype": "markdown", "markdown": {"content": "..."}}
 	payload := map[string]interface{}{
 		"msgtype": "markdown",
 		"markdown": map[string]string{
@@ -126,7 +159,8 @@ func SendWeChatWork(ch model.NotificationChannel, title, content string) error {
 		return fmt.Errorf("failed to marshal webhook payload: %w", err)
 	}
 
-	resp, err := http.Post(webhookURL, "application/json", bytes.NewReader(body))
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(webhookURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("WeChat webhook request failed: %w", err)
 	}
@@ -136,7 +170,6 @@ func SendWeChatWork(ch model.NotificationChannel, title, content string) error {
 		return fmt.Errorf("WeChat webhook returned status %d", resp.StatusCode)
 	}
 
-	// Verify response body
 	var result struct {
 		Errcode int    `json:"errcode"`
 		Errmsg  string `json:"errmsg"`
@@ -154,4 +187,8 @@ func envOrDefault(key, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+func logAlert(evt *zerolog.Event, msg string) *zerolog.Event {
+	return evt
 }
