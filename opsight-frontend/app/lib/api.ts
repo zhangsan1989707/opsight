@@ -44,9 +44,33 @@ export async function postAPI<T = any>(path: string, body?: any): Promise<T> {
   return handleResponse(res);
 }
 
-export async function patchAPI<T = any>(path: string): Promise<T> {
+export async function putAPI<T = any>(path: string, body?: any): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleResponse(res);
+}
+
+export async function patchAPI<T = any>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleResponse(res);
+}
+
+export async function deleteAPI<T = any>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'DELETE',
     headers: getAuthHeaders(),
   });
   return handleResponse(res);

@@ -1,9 +1,14 @@
 package notify
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/smtp"
 	"os"
+	"strings"
+	"time"
 
 	"opsight-backend/internal/database"
 	"opsight-backend/internal/model"
@@ -44,7 +49,6 @@ func SendAlert(channelID uint, ruleName string, severity string, title string, c
 			logger.Info().Str("channel", ch.Name).Str("rule", ruleName).Str("severity", severity).Msg("Notification sent successfully")
 		}
 
-		// Record history
 		database.DB.Create(&model.NotificationHistory{
 			ChannelID:   ch.ID,
 			ChannelName: ch.Name,
@@ -58,61 +62,96 @@ func SendAlert(channelID uint, ruleName string, severity string, title string, c
 	}()
 }
 
-// SendEmail is a stub that logs what would be sent via email.
+// SendEmail sends an email via SMTP.
 func SendEmail(ch model.NotificationChannel, subject, body string) error {
+	// Parse channel config for recipients
 	var cfg struct {
-		SMTPHost string `json:"smtp_host"`
-		SMTPPort string `json:"smtp_port"`
+		Recipients []string `json:"recipients"`
 	}
-	if err := json.Unmarshal([]byte(ch.Config), &cfg); err != nil {
-		logger.Warn().Err(err).Str("channel", ch.Name).Msg("Failed to parse email channel config")
+	json.Unmarshal([]byte(ch.Config), &cfg)
+
+	smtpHost := envOrDefault("SMTP_HOST", "")
+	smtpPort := envOrDefault("SMTP_PORT", "587")
+	smtpUser := envOrDefault("SMTP_USER", "")
+	smtpPass := os.Getenv("SMTP_PASSWORD")
+	smtpFrom := envOrDefault("SMTP_FROM", smtpUser)
+
+	if smtpHost == "" || smtpUser == "" || smtpPass == "" {
+		return fmt.Errorf("SMTP not configured (set SMTP_HOST, SMTP_USER, SMTP_PASSWORD)")
+	}
+	if len(cfg.Recipients) == 0 {
+		return fmt.Errorf("no recipients configured for channel %s", ch.Name)
 	}
 
-	smtpHost := os.Getenv("SMTP_HOST")
-	smtpPort := os.Getenv("SMTP_PORT")
-	smtpUser := os.Getenv("SMTP_USER")
-	smtpFrom := os.Getenv("SMTP_FROM")
-	if smtpHost == "" {
-		smtpHost = "smtp.example.com"
-	}
-	if smtpPort == "" {
-		smtpPort = "587"
-	}
-	if smtpFrom == "" {
-		smtpFrom = "opsight@example.com"
+	addr := smtpHost + ":" + smtpPort
+	auth := smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
+
+	to := strings.Join(cfg.Recipients, ", ")
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
+		smtpFrom, to, subject, body)
+
+	if err := smtp.SendMail(addr, auth, smtpFrom, cfg.Recipients, []byte(msg)); err != nil {
+		return fmt.Errorf("SMTP send failed: %w", err)
 	}
 
-	logger.Info().
-		Str("channel", ch.Name).
-		Str("smtp_host", smtpHost).
-		Str("smtp_port", smtpPort).
-		Str("smtp_user", smtpUser).
-		Str("smtp_from", smtpFrom).
-		Str("subject", subject).
-		Msg("EMAIL STUB - would send email notification")
-
+	logger.Info().Str("host", smtpHost).Strs("to", cfg.Recipients).Str("subject", subject).Msg("Email sent")
 	return nil
 }
 
-// SendWeChatWork is a stub that logs what would be sent via WeChat Work webhook.
+// SendWeChatWork sends a markdown message via WeChat Work webhook.
 func SendWeChatWork(ch model.NotificationChannel, title, content string) error {
 	webhookURL := os.Getenv("WECHAT_WEBHOOK_URL")
 	if webhookURL == "" {
-		// Fallback to config from channel
 		var cfg struct {
 			WebhookURL string `json:"webhook_url"`
 		}
-		if err := json.Unmarshal([]byte(ch.Config), &cfg); err != nil {
-			logger.Warn().Err(err).Str("channel", ch.Name).Msg("Failed to parse wechat channel config")
-		}
+		json.Unmarshal([]byte(ch.Config), &cfg)
 		webhookURL = cfg.WebhookURL
 	}
 
-	logger.Info().
-		Str("channel", ch.Name).
-		Str("webhook_url", webhookURL).
-		Str("title", title).
-		Msg("WECHAT_WORK STUB - would send WeChat Work notification")
+	if webhookURL == "" {
+		return fmt.Errorf("WeChat webhook URL not configured")
+	}
 
+	// WeChat Work webhook expects: {"msgtype": "markdown", "markdown": {"content": "..."}}
+	payload := map[string]interface{}{
+		"msgtype": "markdown",
+		"markdown": map[string]string{
+			"content": fmt.Sprintf("### %s\n%s\n\n> 时间: %s", title, content, time.Now().Format("2006-01-02 15:04:05")),
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal webhook payload: %w", err)
+	}
+
+	resp, err := http.Post(webhookURL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("WeChat webhook request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("WeChat webhook returned status %d", resp.StatusCode)
+	}
+
+	// Verify response body
+	var result struct {
+		Errcode int    `json:"errcode"`
+		Errmsg  string `json:"errmsg"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err == nil && result.Errcode != 0 {
+		return fmt.Errorf("WeChat webhook error: %d %s", result.Errcode, result.Errmsg)
+	}
+
+	logger.Info().Str("title", title).Msg("WeChat Work notification sent")
 	return nil
+}
+
+func envOrDefault(key, defaultVal string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return defaultVal
 }
