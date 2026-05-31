@@ -13,32 +13,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// rateLimitEntry tracks request timestamps for a single IP.
 type rateLimitEntry struct {
 	timestamps []time.Time
 	lastSeen   time.Time
 }
 
-// RateLimiter is an in-memory per-IP rate limiter using a sliding window.
 type RateLimiter struct {
-	mu       sync.Mutex
-	entries  map[string]*rateLimitEntry
-	limit    int           // max requests per window
-	window   time.Duration // time window (e.g. 1 minute)
+	mu      sync.Mutex
+	entries map[string]*rateLimitEntry
+	limit   int
+	window  time.Duration
+	stopCh  chan struct{}
 }
 
-// NewRateLimiter creates a new rate limiter.
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 	rl := &RateLimiter{
 		entries: make(map[string]*rateLimitEntry),
 		limit:   limit,
 		window:  window,
+		stopCh:  make(chan struct{}),
 	}
 	go rl.cleanupLoop()
 	return rl
 }
 
-// Allow checks whether an IP is allowed to make a request. Returns true if under limit.
+func (rl *RateLimiter) Stop() {
+	close(rl.stopCh)
+}
+
 func (rl *RateLimiter) Allow(ip string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -53,7 +55,6 @@ func (rl *RateLimiter) Allow(ip string) bool {
 		return true
 	}
 
-	// Remove timestamps outside the window
 	cutoff := now.Add(-rl.window)
 	valid := entry.timestamps[:0]
 	for _, ts := range entry.timestamps {
@@ -72,12 +73,16 @@ func (rl *RateLimiter) Allow(ip string) bool {
 	return true
 }
 
-// cleanupLoop periodically removes stale entries.
 func (rl *RateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		rl.cleanup()
+	for {
+		select {
+		case <-rl.stopCh:
+			return
+		case <-ticker.C:
+			rl.cleanup()
+		}
 	}
 }
 
@@ -93,7 +98,6 @@ func (rl *RateLimiter) cleanup() {
 	}
 }
 
-// loadEnvInt reads an integer environment variable or returns a default.
 func loadEnvInt(key string, defaultVal int) int {
 	val := os.Getenv(key)
 	if val == "" {
@@ -106,8 +110,6 @@ func loadEnvInt(key string, defaultVal int) int {
 	return n
 }
 
-// RateLimit returns a Gin middleware that applies per-IP rate limiting.
-// limit: max requests, window: time window.
 func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 	limiter := NewRateLimiter(limit, window)
 	return func(c *gin.Context) {
@@ -125,13 +127,11 @@ func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 	}
 }
 
-// GeneralRateLimit creates the general API rate limiter from env RATE_LIMIT_RPS (default 100 req/min).
 func GeneralRateLimit() gin.HandlerFunc {
 	rps := loadEnvInt("RATE_LIMIT_RPS", 100)
 	return RateLimit(rps, 1*time.Minute)
 }
 
-// LoginRateLimit creates the login endpoint rate limiter from env RATE_LIMIT_LOGIN_RPM (default 5 req/min).
 func LoginRateLimit() gin.HandlerFunc {
 	rpm := loadEnvInt("RATE_LIMIT_LOGIN_RPM", 5)
 	return RateLimit(rpm, 1*time.Minute)

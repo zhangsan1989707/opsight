@@ -10,22 +10,37 @@ import (
 	"opsight-backend/internal/database"
 	"opsight-backend/internal/metrics"
 	"opsight-backend/internal/model"
+	"opsight-backend/pkg/logger"
 	"opsight-backend/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )
 
+func clampPercent(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 100 {
+		return 100
+	}
+	return v
+}
+
 // AgentAPIKeyAuth returns middleware that validates the Agent API key.
+// If AGENT_API_KEY is not configured, it returns 401 for ALL requests (no bypass).
 func AgentAPIKeyAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := os.Getenv("AGENT_API_KEY")
 		if key == "" {
-			c.Next()
+			logger.Error().Msg("AGENT_API_KEY is not configured - rejecting all agent reports")
+			response.Error(c, http.StatusUnauthorized, response.ErrUnauthorized, "agent authentication not configured")
+			c.Abort()
 			return
 		}
 		auth := c.GetHeader("Authorization")
 		parts := strings.SplitN(auth, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] != key {
+			logger.Warn().Str("client_ip", c.ClientIP()).Msg("invalid agent api key attempted")
 			response.Error(c, http.StatusUnauthorized, response.ErrUnauthorized, "invalid agent api key")
 			c.Abort()
 			return
@@ -73,6 +88,27 @@ func AgentReport(c *gin.Context) {
 	if req.Hostname == "" {
 		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "hostname is required")
 		return
+	}
+	if len(req.Hostname) > 255 {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "hostname too long")
+		return
+	}
+
+	req.CPU.Percent = clampPercent(req.CPU.Percent)
+	req.Memory.Percent = clampPercent(req.Memory.Percent)
+	req.Disk.Percent = clampPercent(req.Disk.Percent)
+
+	if req.Memory.TotalMB < 0 || req.Memory.UsedMB < 0 || req.Memory.UsedMB > req.Memory.TotalMB {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid memory values")
+		return
+	}
+	if req.Disk.TotalMB < 0 || req.Disk.UsedMB < 0 || req.Disk.UsedMB > req.Disk.TotalMB {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid disk values")
+		return
+	}
+	if req.Network.RecvBytesPerSec < 0 || req.Network.SentBytesPerSec < 0 {
+		req.Network.RecvBytesPerSec = 0
+		req.Network.SentBytesPerSec = 0
 	}
 
 	now := time.Now()

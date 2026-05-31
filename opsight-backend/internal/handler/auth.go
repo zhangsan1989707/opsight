@@ -5,6 +5,7 @@ import (
 
 	"opsight-backend/internal/audit"
 	"opsight-backend/internal/auth"
+	"opsight-backend/pkg/middleware"
 	"opsight-backend/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -47,6 +48,14 @@ func Register(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "name, email, and password are required")
 		return
 	}
+	if !middleware.ValidateEmail(req.Email) {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid email format")
+		return
+	}
+	if len(req.Password) < 8 {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "password must be at least 8 characters")
+		return
+	}
 	if req.Role == "" {
 		req.Role = "viewer"
 	}
@@ -74,8 +83,10 @@ func RefreshToken(c *gin.Context) {
 	userID, email, role := auth.GetCurrentUser(c)
 	token, err := auth.GenerateToken(userID, email, role)
 	if err != nil {
+		audit.Log(0, email, "refresh_token_failed", "auth/refresh", "", err.Error(), c.ClientIP(), c.GetHeader("User-Agent"), "failure")
 		response.Error(c, http.StatusInternalServerError, response.ErrInternalServer, "failed to refresh token")
 		return
 	}
+	audit.Log(0, email, "refresh_token", "auth/refresh", "", "Token refreshed successfully", c.ClientIP(), c.GetHeader("User-Agent"), "success")
 	response.Success(c, gin.H{"token": token})
 }

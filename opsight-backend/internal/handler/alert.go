@@ -14,6 +14,7 @@ import (
 	"opsight-backend/pkg/response"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func GetAlertRules(c *gin.Context) {
@@ -119,7 +120,8 @@ func CreateAlertRule(c *gin.Context) {
 		return
 	}
 	if rule.ID == "" {
-		rule.ID = fmt.Sprintf("RULE-%d", time.Now().UnixNano()%100000)
+		id := uuid.New()
+		rule.ID = fmt.Sprintf("RULE-%s", id[:8])
 	}
 	if err := database.DB.Create(&rule).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, response.ErrInternalServer, "failed to create rule")

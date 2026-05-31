@@ -6,6 +6,7 @@ import (
 	"opsight-backend/internal/database"
 	"opsight-backend/internal/dto"
 	"opsight-backend/internal/model"
+	"opsight-backend/pkg/middleware"
 	"opsight-backend/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -40,6 +41,10 @@ func CreateService(c *gin.Context) {
 	}
 	if s.Name == "" {
 		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "service name is required")
+		return
+	}
+	if !middleware.IsValidServiceName(s.Name) {
+		response.Error(c, http.StatusBadRequest, response.ErrBadRequest, "invalid service name: use only alphanumeric, hyphens, underscores, and dots (max 128 chars)")
 		return
 	}
 	if s.Status == "" {
