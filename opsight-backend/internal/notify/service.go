@@ -19,17 +19,17 @@ import (
 
 func SendAlert(channelID uint, ruleName string, severity string, title string, content string) {
 	go func() {
-		err := sendAlertWithRetry(channelID, ruleName, severity, title, content)
-		recordNotification(channelID, ruleName, severity, title, content, err)
+		var ch model.NotificationChannel
+		if err := database.DB.First(&ch, channelID).Error; err != nil {
+			logger.Error().Err(err).Uint("channel_id", channelID).Msg("Failed to load notification channel")
+			return
+		}
+		err := sendAlertWithRetry(&ch, ruleName, severity, title, content)
+		recordNotification(&ch, ruleName, severity, title, content, err)
 	}()
 }
 
-func sendAlertWithRetry(channelID uint, ruleName string, severity string, title string, content string) error {
-	var ch model.NotificationChannel
-	if err := database.DB.First(&ch, channelID).Error; err != nil {
-		return fmt.Errorf("channel not found: %w", err)
-	}
-
+func sendAlertWithRetry(ch *model.NotificationChannel, ruleName string, severity string, title string, content string) error {
 	if !ch.Enabled {
 		logger.Debug().Str("channel", ch.Name).Msg("Notification channel disabled, skipping")
 		return nil
@@ -67,29 +67,29 @@ func sendAlertWithRetry(channelID uint, ruleName string, severity string, title 
 	return fmt.Errorf("all %d retries exhausted: %w", maxRetries, lastErr)
 }
 
-func sendByChannel(ch model.NotificationChannel, title, content string) error {
+func sendByChannel(ch *model.NotificationChannel, title, content string) error {
 	switch ch.Type {
 	case "email":
-		return sendEmailWithTimeout(ch, title, content)
+		return sendEmailWithTimeout(*ch, title, content)
 	case "wechat_work":
-		return sendWeChatWorkWithTimeout(ch, title, content)
+		return sendWeChatWorkWithTimeout(*ch, title, content)
 	default:
 		return fmt.Errorf("unsupported channel type: %s", ch.Type)
 	}
 }
 
-func recordNotification(channelID uint, ruleName string, severity string, title string, content string, sendErr error) {
+func recordNotification(ch *model.NotificationChannel, ruleName string, severity string, title string, content string, sendErr error) {
 	status := "success"
 	errStr := ""
 	if sendErr != nil {
 		status = "failed"
 		errStr = sendErr.Error()
-		logger.Error().Err(sendErr).Str("channel_id", fmt.Sprintf("%d", channelID)).Str("rule", ruleName).Msg("Notification send failed after all retries")
+		logger.Error().Err(sendErr).Str("channel_id", fmt.Sprintf("%d", ch.ID)).Str("rule", ruleName).Msg("Notification send failed after all retries")
 	}
 
 	database.DB.Create(&model.NotificationHistory{
-		ChannelID:   channelID,
-		ChannelName: "",
+		ChannelID:   ch.ID,
+		ChannelName: ch.Name,
 		AlertRuleID: ruleName,
 		Severity:    severity,
 		Title:       title,

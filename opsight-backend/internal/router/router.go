@@ -42,10 +42,7 @@ func SetupCORS(r *gin.Engine, allowedOrigins []string) {
 
 func SetupRoutes(r *gin.Engine, allowedOrigins []string) {
 	r.GET("/healthz", handler.HealthCheck)
-	r.GET("/metrics", func(c *gin.Context) {
-		c.Header("Content-Type", "text/plain")
-		c.String(200, metrics.PrometheusMetrics())
-	})
+	r.GET("/metrics", metrics.PrometheusHandler())
 
 	handler.SetWSOriginCheck(func(req *http.Request) bool {
 		origin := req.Header.Get("Origin")

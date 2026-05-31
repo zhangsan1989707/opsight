@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"opsight-backend/internal/cache"
 	"opsight-backend/internal/database"
 	"opsight-backend/internal/dto"
 	"opsight-backend/internal/model"
@@ -16,6 +17,14 @@ import (
 )
 
 func GetDashboardSummary(c *gin.Context) {
+	cacheKey := "opsight:dashboard:summary"
+	var cacheData gin.H
+
+	if hit, _ := cache.GetJSON(c, cacheKey, &cacheData); hit {
+		response.Success(c, cacheData)
+		return
+	}
+
 	var services []model.Service
 	database.DB.Find(&services)
 
@@ -37,7 +46,6 @@ func GetDashboardSummary(c *gin.Context) {
 	var resolvedIncidents int64
 	database.DB.Model(&model.Incident{}).Where("status = ?", "resolved").Count(&resolvedIncidents)
 
-	// Count today's alert events
 	today := time.Now().Truncate(24 * time.Hour)
 	var alertsToday int64
 	database.DB.Model(&model.AlertEvent{}).Where("created_at >= ?", today).Count(&alertsToday)
@@ -45,7 +53,6 @@ func GetDashboardSummary(c *gin.Context) {
 	var autoResolved int64
 	database.DB.Model(&model.AlertEvent{}).Where("created_at >= ? AND status = ?", today, "resolved").Count(&autoResolved)
 
-	// Compute MTTR from resolved alert events (avg resolution time in minutes)
 	var avgMTTR float64
 	type mttrRow struct {
 		Duration float64
@@ -60,7 +67,7 @@ func GetDashboardSummary(c *gin.Context) {
 		avgMTTR = 0
 	}
 
-	response.Success(c, gin.H{
+	data := gin.H{
 		"active_incidents":  activeIncidents,
 		"mttr_minutes":      fmt.Sprintf("%.1f", avgMTTR),
 		"resolved_total":    resolvedIncidents,
@@ -70,7 +77,10 @@ func GetDashboardSummary(c *gin.Context) {
 		"services_total":    len(services),
 		"ai_alerts_today":   alertsToday,
 		"ai_auto_resolved":  autoResolved,
-	})
+	}
+
+	cache.SetJSON(c, cacheKey, data, 30*time.Second)
+	response.Success(c, data)
 }
 
 func GetErrorRate(c *gin.Context) {
